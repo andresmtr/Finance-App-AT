@@ -1,0 +1,286 @@
+{% extends "base.html" %}
+{% load formatting %}
+
+{% block content %}
+  <div class="hero">
+    <h1 class="display-6">Resumen financiero</h1>
+    <p class="mb-0">KPIs y tendencias del consolidado local.</p>
+  </div>
+
+  <form method="get" class="row g-3 mb-4">
+    <div class="col-md-4">
+      <label class="form-label">Banco</label>
+      <select name="bank" class="form-select">
+        <option value="">Todos</option>
+        {% for bank in banks %}
+          <option value="{{ bank }}" {% if filters.bank == bank %}selected{% endif %}>{{ bank }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Cuenta</label>
+      <select name="account_last4" class="form-select">
+        <option value="">Todas</option>
+        {% for account in accounts %}
+          <option value="{{ account }}" {% if filters.account_last4 == account %}selected{% endif %}>{{ account }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Tipo</label>
+      <select name="movement_type" class="form-select">
+        <option value="">Todos</option>
+        {% for movement in movement_types %}
+          <option value="{{ movement }}" {% if filters.movement_type == movement %}selected{% endif %}>{{ movement }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Serie temporal</label>
+      <select name="granularity" class="form-select">
+        <option value="daily" {% if granularity == "daily" %}selected{% endif %}>Diaria</option>
+        <option value="weekly" {% if granularity == "weekly" %}selected{% endif %}>Semanal</option>
+        <option value="monthly" {% if granularity == "monthly" %}selected{% endif %}>Mensual</option>
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Referencia</label>
+      <input type="text" name="reference" class="form-control" value="{{ filters.reference }}">
+    </div>
+    <div class="col-12 d-flex gap-2">
+      <button type="submit" class="btn btn-primary">Aplicar filtros</button>
+      <a class="btn btn-outline-secondary" href="/">Limpiar</a>
+    </div>
+  </form>
+
+  <div class="row g-4 mb-4">
+    <div class="col-md-4">
+      <div class="kpi">
+        <h6 class="text-muted">Total ingresos</h6>
+        <h3>${{ total_income|money_es }}</h3>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="kpi">
+        <h6 class="text-muted">Total egresos</h6>
+        <h3>${{ total_expense|money_es }}</h3>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="kpi">
+        <h6 class="text-muted">Neto</h6>
+        <h3>${{ net|money_es }}</h3>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4 mb-4">
+    <div class="col-md-4">
+      <div class="kpi">
+        <h6 class="text-muted">Transacciones</h6>
+        <h3>{{ tx_count|int_es }}</h3>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="kpi">
+        <h6 class="text-muted">Promedio mensual (neto)</h6>
+        <h3>${{ avg_monthly_net|money_es }}</h3>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-lg-6">
+      <div class="chart-card">
+        <h6 class="text-muted">Serie temporal</h6>
+        <canvas id="timeSeries"></canvas>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="chart-card">
+        <h6 class="text-muted">Por tipo de movimiento</h6>
+        <canvas id="movementChart"></canvas>
+      </div>
+    </div>
+    <div class="col-lg-12">
+      <div class="chart-card">
+        <h6 class="text-muted">Top 10 merchants por gasto</h6>
+        <canvas id="merchantChart"></canvas>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="chart-card">
+        <h6 class="text-muted">Monto por banco</h6>
+        <canvas id="bankChart"></canvas>
+      </div>
+    </div>
+    <div class="col-lg-12">
+      <div class="chart-card">
+        <h6 class="text-muted">Promedio diario neto por mes</h6>
+        <canvas id="monthlyAvgChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  {{ chart_data_json|json_script:"chart-data" }}
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    const chartData = JSON.parse(document.getElementById("chart-data").textContent);
+    const formatNumber = new Intl.NumberFormat("es-CO", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+    new Chart(document.getElementById("timeSeries"), {
+      type: "line",
+      data: {
+        labels: chartData.time_series.labels,
+        datasets: [{
+          label: "Ingresos",
+          data: chartData.time_series.income,
+          borderColor: "#2a9d8f",
+          backgroundColor: "rgba(42, 157, 143, 0.2)",
+          tension: 0.2,
+          fill: true,
+        }, {
+          label: "Egresos",
+          data: chartData.time_series.expense,
+          borderColor: "#e63946",
+          backgroundColor: "rgba(230, 57, 70, 0.2)",
+          tension: 0.2,
+          fill: true,
+        }, {
+          label: "Neto",
+          data: chartData.time_series.net,
+          borderColor: "#1d3557",
+          backgroundColor: "rgba(69, 123, 157, 0.2)",
+          tension: 0.2,
+          fill: true,
+        }],
+      },
+      options: {
+        plugins: {
+          tooltip: {
+            callbacks: {
+              label: (context) => `${context.dataset.label}: ${formatNumber.format(context.parsed.y)}`,
+            },
+          },
+        },
+        scales: {
+          y: {
+            ticks: {
+              callback: (value) => formatNumber.format(value),
+            },
+          },
+        },
+      },
+    });
+
+    new Chart(document.getElementById("movementChart"), {
+      type: "pie",
+      data: {
+        labels: chartData.movement.labels,
+        datasets: [{
+          data: chartData.movement.values,
+          backgroundColor: ["#457b9d", "#e63946", "#f4a261", "#2a9d8f", "#1d3557"],
+        }],
+      },
+      options: {
+        plugins: {
+          tooltip: {
+            callbacks: {
+              label: (context) => `${context.label}: ${formatNumber.format(context.parsed)}`,
+            },
+          },
+        },
+      },
+    });
+
+    new Chart(document.getElementById("merchantChart"), {
+      type: "bar",
+      data: {
+        labels: chartData.merchants.labels,
+        datasets: [{
+          label: "Gasto",
+          data: chartData.merchants.values,
+          backgroundColor: "rgba(230, 57, 70, 0.7)",
+        }],
+      },
+      options: {
+        indexAxis: "y",
+        plugins: {
+          tooltip: {
+            callbacks: {
+              label: (context) => `${context.dataset.label}: ${formatNumber.format(context.parsed.x)}`,
+            },
+          },
+        },
+        scales: {
+          x: {
+            ticks: {
+              callback: (value) => formatNumber.format(value),
+            },
+          },
+        },
+      },
+    });
+
+    new Chart(document.getElementById("bankChart"), {
+      type: "bar",
+      data: {
+        labels: chartData.banks.labels,
+        datasets: [{
+          label: "Monto",
+          data: chartData.banks.values,
+          backgroundColor: "rgba(42, 157, 143, 0.6)",
+        }],
+      },
+      options: {
+        plugins: {
+          tooltip: {
+            callbacks: {
+              label: (context) => `${context.dataset.label}: ${formatNumber.format(context.parsed.y)}`,
+            },
+          },
+        },
+        scales: {
+          y: {
+            ticks: {
+              callback: (value) => formatNumber.format(value),
+            },
+          },
+        },
+      },
+    });
+
+    new Chart(document.getElementById("monthlyAvgChart"), {
+      type: "bar",
+      data: {
+        labels: chartData.monthly_avg.labels,
+        datasets: [{
+          label: "Promedio diario neto",
+          data: chartData.monthly_avg.values,
+          backgroundColor: "rgba(69, 123, 157, 0.6)",
+        }],
+      },
+      options: {
+        plugins: {
+          tooltip: {
+            callbacks: {
+              label: (context) => `${context.dataset.label}: ${formatNumber.format(context.parsed.y)}`,
+            },
+          },
+        },
+        scales: {
+          y: {
+            ticks: {
+              callback: (value) => formatNumber.format(value),
+            },
+          },
+        },
+      },
+    });
+  </script>
+{% endblock %}
