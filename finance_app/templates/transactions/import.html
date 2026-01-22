@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block content %}
+  <div class="hero">
+    <h1 class="display-6">{% trans "Import PDF Statements" %}</h1>
+    <p class="mb-0">{% trans "Upload PDFs to generate transactions for review." %}</p>
+  </div>
+
+  {% if error %}
+    <div class="alert alert-danger">{{ error }}</div>
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data" class="card p-4">
+    {% csrf_token %}
+    <div class="mb-3">
+      <label class="form-label">{% trans "PDFs" %}</label>
+      <input class="form-control" type="file" name="pdfs" accept="application/pdf" multiple required>
+      <div class="form-text">{% trans "You can select multiple files." %}</div>
+    </div>
+    <div class="mb-3">
+      <label class="form-label">{% trans "Passwords (optional)" %}</label>
+      <input class="form-control" type="text" name="passwords" placeholder="1234, 5678">
+      <div class="form-text">{% trans "Comma-separated if there is more than one." %}</div>
+    </div>
+    <button class="btn btn-primary" type="submit">{% trans "Process and review" %}</button>
+    <a class="btn btn-outline-secondary ms-2" href="/transactions/manual/">{% trans "Manual Entry" %}</a>
+  </form>
+{% endblock %}

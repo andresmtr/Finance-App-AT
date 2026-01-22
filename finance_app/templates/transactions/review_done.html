@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block content %}
+  <div class="hero">
+    <h1 class="display-6">{% trans "Review Complete" %}</h1>
+    <p class="mb-0">{% trans "Batch" %} {{ batch.id }} {% trans "has no pending transactions." %}</p>
+  </div>
+
+  <div class="card p-4">
+    <p class="mb-3">{% trans "No pending transactions to review." %}</p>
+    <a class="btn btn-primary" href="/transactions/">{% trans "View transactions" %}</a>
+    <a class="btn btn-outline-secondary" href="/imports/">{% trans "Import another PDF" %}</a>
+  </div>
+{% endblock %}

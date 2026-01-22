@@ -5,7 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 
-from finance_app.core.services.ingestion import load_consolidated
+from finance_app.transactions.models import MovementType, Transaction
 
 
 def _safe_sum(series: pd.Series) -> float:
@@ -41,8 +41,49 @@ def _format_period_labels(index: pd.DatetimeIndex, granularity: str) -> list[str
 
 @login_required
 def dashboard(request: HttpRequest) -> HttpResponse:
-    frame_all = load_consolidated()
-    frame_all = frame_all.dropna(subset=["amount"]) if not frame_all.empty else frame_all
+    base_qs = (
+        Transaction.objects.filter(user=request.user)
+        .select_related("movement_type")
+        .values(
+            "bank",
+            "account_last4",
+            "date",
+            "time",
+            "amount",
+            "currency",
+            "movement_type__name",
+            "reference",
+            "merchant",
+            "location",
+            "channel",
+            "description",
+            "external_id",
+        )
+    )
+    frame_all = pd.DataFrame.from_records(base_qs)
+    if frame_all.empty:
+        frame_all = pd.DataFrame(
+            columns=[
+                "bank",
+                "account_last4",
+                "date",
+                "time",
+                "amount",
+                "currency",
+                "movement_type",
+                "reference",
+                "merchant",
+                "location",
+                "channel",
+                "description",
+                "id",
+            ]
+        )
+    else:
+        frame_all = frame_all.rename(columns={"movement_type__name": "movement_type"})
+        frame_all["id"] = frame_all["external_id"]
+        frame_all = frame_all.drop(columns=["external_id"])
+        frame_all = frame_all.dropna(subset=["amount"])
 
     bank = request.GET.get("bank", "")
     account_last4 = request.GET.get("account_last4", "")
@@ -169,8 +210,6 @@ def dashboard(request: HttpRequest) -> HttpResponse:
         )
         if not frame_all.empty
         else [],
-        "movement_types": sorted(frame_all["movement_type"].dropna().unique().tolist())
-        if not frame_all.empty
-        else [],
+        "movement_types": [mt.name for mt in MovementType.objects.filter(is_active=True).order_by("name")],
     }
     return render(request, "dashboard/dashboard.html", context)

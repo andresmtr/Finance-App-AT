@@ -1,46 +1,42 @@
-# Finanzas Personales (Django + Samba)
+# Finanzas Personales (Django + OCR PDF)
 
-App web para consolidar CSV desde un recurso Samba y visualizar KPIs, graficas y transacciones.
+App web para importar extractos bancarios en PDF, revisar los movimientos en una lista editable y guardar transacciones por usuario. Incluye dashboard de KPIs, filtros y export CSV.
 
 ## Requisitos
 - Docker + Docker Compose
-
-## Configuracion
-1) Copia `.env.example` a `.env` y completa las variables:
-```
-DJANGO_SECRET_KEY=...
-DEBUG=true
-ALLOWED_HOSTS=*
-SAMBA_HOST=192.168.20.24
-SAMBA_USERNAME=samba
-SAMBA_PASSWORD=...
-SAMBA_REMOTE_PATH=/backup/n8n/datos_bk
-```
-
-Nota: `SAMBA_REMOTE_PATH` se interpreta como `/share/subcarpeta`. En el ejemplo anterior el share es `backup` y la carpeta es `n8n/datos_bk`.
+- Poppler y Tesseract dentro del contenedor (incluidos en el Dockerfile)
 
 ## Levantar con Docker
 ```
 docker compose up --build
 ```
 
-La app queda disponible en `http://localhost:8000`.
+La app queda disponible en `http://localhost:8002`.
 
 ## Uso
-- Dashboard: KPIs y graficas principales.
+- Registro e inicio de sesion con Django.
+- Importar PDFs: carga uno o varios PDFs, procesa OCR y genera movimientos en estado pendiente.
+- Revision por lote: lista editable para ajustar, aprobar, omitir o eliminar movimientos (sin borrado fisico).
 - Transacciones: tabla con filtros y export CSV.
-- Boton "Actualizar": descarga los CSV desde Samba, consolida y guarda en `data/consolidated.csv`.
-- Inicio de sesion: requiere las credenciales del superusuario Django.
+- Dashboard: KPIs y graficas basadas en la base de datos.
+- Idiomas: selector en la barra superior (es/en).
 
-## Estructura de datos
-- Se normalizan columnas y se toleran CSV con columnas faltantes.
-- Deduplicacion: usa `id` si existe; si no, crea hash de `(bank, account_last4, date, time, amount, reference)`.
+## Flujo de datos
+- OCR con Tesseract + deteccion de tablas con Table Transformer.
+- Parsing de montos con debito/credito y fallback por texto.
+- Los PDFs se eliminan despues del staging.
+- Datos persistidos en SQLite por usuario.
 
-## Troubleshooting
-- **Permisos Samba**: verifica usuario/clave y que el share exponga la ruta correcta.
-- **Samba offline**: el boton "Actualizar" mostrara el error en pantalla.
-- **Encoding CSV**: se usa `encoding_errors=replace` y `on_bad_lines=skip` para evitar bloqueos.
-- **Separador CSV**: se intenta inferir el separador automaticamente.
+## Configuracion opcional
+Variables en `.env`:
+```
+DJANGO_SECRET_KEY=...
+DEBUG=true
+ALLOWED_HOSTS=*
+PDF_DEBUG=1
+```
+
+`PDF_DEBUG=1` activa logs de parsing similares al notebook.
 
 ## Desarrollo local (opcional)
 ```

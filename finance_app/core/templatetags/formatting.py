@@ -27,3 +27,10 @@ def int_es(value: int | float | None) -> str:
         return formatted.replace(",", ".")
     except (TypeError, ValueError):
         return "0"
+
+
+@register.filter
+def get_item(mapping: dict, key):
+    if not isinstance(mapping, dict):
+        return None
+    return mapping.get(key)

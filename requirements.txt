@@ -3,3 +3,9 @@ pandas==2.2.2
 pysmb==1.2.9.1
 python-dotenv==1.0.1
 gunicorn==22.0.0
+pdf2image==1.17.0
+Pillow==10.3.0
+pypdf==4.2.0
+pytesseract==0.3.10
+torch==2.3.1
+transformers==4.41.2

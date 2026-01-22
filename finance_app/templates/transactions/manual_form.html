@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block content %}
+  <div class="hero">
+    <h1 class="display-6">{% trans "Manual Transaction" %}</h1>
+    <p class="mb-0">{% trans "Add a transaction without importing a PDF." %}</p>
+  </div>
+
+  <div class="card p-4">
+    <form method="post">
+      {% csrf_token %}
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label">{% trans "Bank" %}</label>
+          <input class="form-control" name="bank">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">{% trans "Account" %}</label>
+          <input class="form-control" name="account_last4">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">{% trans "Date" %}</label>
+          <input class="form-control" type="date" name="date">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">{% trans "Time" %}</label>
+          <input class="form-control" type="time" name="time">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">{% trans "Amount" %}</label>
+          <input class="form-control" name="amount">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">{% trans "Currency" %}</label>
+          <input class="form-control" name="currency" value="COP">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">{% trans "Movement Type" %}</label>
+          <select class="form-select" name="movement_type">
+            <option value="">{% trans "-- Select --" %}</option>
+            {% for mt in movement_types %}
+              <option value="{{ mt.name }}">{{ mt.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">{% trans "Reference" %}</label>
+          <input class="form-control" name="reference">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">{% trans "Merchant" %}</label>
+          <input class="form-control" name="merchant">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">{% trans "Location" %}</label>
+          <input class="form-control" name="location">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">{% trans "Channel" %}</label>
+          <input class="form-control" name="channel">
+        </div>
+        <div class="col-12">
+          <label class="form-label">{% trans "Description" %}</label>
+          <textarea class="form-control" name="description" rows="3"></textarea>
+        </div>
+      </div>
+      <div class="mt-3 d-flex gap-2">
+        <button class="btn btn-success" type="submit">{% trans "Save" %}</button>
+        <a class="btn btn-outline-secondary" href="/transactions/">{% trans "Cancel" %}</a>
+      </div>
+    </form>
+  </div>
+{% endblock %}

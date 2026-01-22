@@ -1,15 +1,16 @@
 {% extends "base.html" %}
+{% load i18n %}
 {% load formatting %}
 
 {% block content %}
   <div class="hero">
-    <h1 class="display-6">Resumen financiero</h1>
-    <p class="mb-0">KPIs y tendencias del consolidado local.</p>
+    <h1 class="display-6">{% trans "Financial Summary" %}</h1>
+    <p class="mb-0">{% trans "KPIs and trends from your transactions." %}</p>
   </div>
 
   <form method="get" class="row g-3 mb-4">
     <div class="col-md-4">
-      <label class="form-label">Banco</label>
+      <label class="form-label">{% trans "Bank" %}</label>
       <select name="bank" class="form-select">
         <option value="">Todos</option>
         {% for bank in banks %}
@@ -18,7 +19,7 @@
       </select>
     </div>
     <div class="col-md-4">
-      <label class="form-label">Cuenta</label>
+      <label class="form-label">{% trans "Account" %}</label>
       <select name="account_last4" class="form-select">
         <option value="">Todas</option>
         {% for account in accounts %}
@@ -27,7 +28,7 @@
       </select>
     </div>
     <div class="col-md-4">
-      <label class="form-label">Tipo</label>
+      <label class="form-label">{% trans "Type" %}</label>
       <select name="movement_type" class="form-select">
         <option value="">Todos</option>
         {% for movement in movement_types %}
@@ -36,39 +37,39 @@
       </select>
     </div>
     <div class="col-md-4">
-      <label class="form-label">Serie temporal</label>
+      <label class="form-label">{% trans "Time series" %}</label>
       <select name="granularity" class="form-select">
-        <option value="daily" {% if granularity == "daily" %}selected{% endif %}>Diaria</option>
-        <option value="weekly" {% if granularity == "weekly" %}selected{% endif %}>Semanal</option>
-        <option value="monthly" {% if granularity == "monthly" %}selected{% endif %}>Mensual</option>
+        <option value="daily" {% if granularity == "daily" %}selected{% endif %}>{% trans "Daily" %}</option>
+        <option value="weekly" {% if granularity == "weekly" %}selected{% endif %}>{% trans "Weekly" %}</option>
+        <option value="monthly" {% if granularity == "monthly" %}selected{% endif %}>{% trans "Monthly" %}</option>
       </select>
     </div>
     <div class="col-md-4">
-      <label class="form-label">Referencia</label>
+      <label class="form-label">{% trans "Reference" %}</label>
       <input type="text" name="reference" class="form-control" value="{{ filters.reference }}">
     </div>
     <div class="col-12 d-flex gap-2">
-      <button type="submit" class="btn btn-primary">Aplicar filtros</button>
-      <a class="btn btn-outline-secondary" href="/">Limpiar</a>
+      <button type="submit" class="btn btn-primary">{% trans "Apply filters" %}</button>
+      <a class="btn btn-outline-secondary" href="/">{% trans "Clear" %}</a>
     </div>
   </form>
 
   <div class="row g-4 mb-4">
     <div class="col-md-4">
       <div class="kpi">
-        <h6 class="text-muted">Total ingresos</h6>
+        <h6 class="text-muted">{% trans "Total income" %}</h6>
         <h3>${{ total_income|money_es }}</h3>
       </div>
     </div>
     <div class="col-md-4">
       <div class="kpi">
-        <h6 class="text-muted">Total egresos</h6>
+        <h6 class="text-muted">{% trans "Total expenses" %}</h6>
         <h3>${{ total_expense|money_es }}</h3>
       </div>
     </div>
     <div class="col-md-4">
       <div class="kpi">
-        <h6 class="text-muted">Neto</h6>
+        <h6 class="text-muted">{% trans "Net" %}</h6>
         <h3>${{ net|money_es }}</h3>
       </div>
     </div>
@@ -77,13 +78,13 @@
   <div class="row g-4 mb-4">
     <div class="col-md-4">
       <div class="kpi">
-        <h6 class="text-muted">Transacciones</h6>
+        <h6 class="text-muted">{% trans "Transactions" %}</h6>
         <h3>{{ tx_count|int_es }}</h3>
       </div>
     </div>
     <div class="col-md-4">
       <div class="kpi">
-        <h6 class="text-muted">Promedio mensual (neto)</h6>
+        <h6 class="text-muted">{% trans "Monthly average (net)" %}</h6>
         <h3>${{ avg_monthly_net|money_es }}</h3>
       </div>
     </div>
@@ -92,31 +93,31 @@
   <div class="row g-4">
     <div class="col-lg-6">
       <div class="chart-card">
-        <h6 class="text-muted">Serie temporal</h6>
+        <h6 class="text-muted">{% trans "Time series" %}</h6>
         <canvas id="timeSeries"></canvas>
       </div>
     </div>
     <div class="col-lg-6">
       <div class="chart-card">
-        <h6 class="text-muted">Por tipo de movimiento</h6>
+        <h6 class="text-muted">{% trans "By movement type" %}</h6>
         <canvas id="movementChart"></canvas>
       </div>
     </div>
     <div class="col-lg-12">
       <div class="chart-card">
-        <h6 class="text-muted">Top 10 merchants por gasto</h6>
+        <h6 class="text-muted">{% trans "Top 10 merchants by spend" %}</h6>
         <canvas id="merchantChart"></canvas>
       </div>
     </div>
     <div class="col-lg-6">
       <div class="chart-card">
-        <h6 class="text-muted">Monto por banco</h6>
+        <h6 class="text-muted">{% trans "Amount by bank" %}</h6>
         <canvas id="bankChart"></canvas>
       </div>
     </div>
     <div class="col-lg-12">
       <div class="chart-card">
-        <h6 class="text-muted">Promedio diario neto por mes</h6>
+        <h6 class="text-muted">{% trans "Average daily net per month" %}</h6>
         <canvas id="monthlyAvgChart"></canvas>
       </div>
     </div>
@@ -138,21 +139,21 @@
       data: {
         labels: chartData.time_series.labels,
         datasets: [{
-          label: "Ingresos",
+          label: "{% trans 'Income' %}",
           data: chartData.time_series.income,
           borderColor: "#2a9d8f",
           backgroundColor: "rgba(42, 157, 143, 0.2)",
           tension: 0.2,
           fill: true,
         }, {
-          label: "Egresos",
+          label: "{% trans 'Expenses' %}",
           data: chartData.time_series.expense,
           borderColor: "#e63946",
           backgroundColor: "rgba(230, 57, 70, 0.2)",
           tension: 0.2,
           fill: true,
         }, {
-          label: "Neto",
+          label: "{% trans 'Net' %}",
           data: chartData.time_series.net,
           borderColor: "#1d3557",
           backgroundColor: "rgba(69, 123, 157, 0.2)",
@@ -203,7 +204,7 @@
       data: {
         labels: chartData.merchants.labels,
         datasets: [{
-          label: "Gasto",
+          label: "{% trans 'Spend' %}",
           data: chartData.merchants.values,
           backgroundColor: "rgba(230, 57, 70, 0.7)",
         }],
@@ -232,7 +233,7 @@
       data: {
         labels: chartData.banks.labels,
         datasets: [{
-          label: "Monto",
+          label: "{% trans 'Amount' %}",
           data: chartData.banks.values,
           backgroundColor: "rgba(42, 157, 143, 0.6)",
         }],
@@ -260,7 +261,7 @@
       data: {
         labels: chartData.monthly_avg.labels,
         datasets: [{
-          label: "Promedio diario neto",
+          label: "{% trans 'Average daily net' %}",
           data: chartData.monthly_avg.values,
           backgroundColor: "rgba(69, 123, 157, 0.6)",
         }],

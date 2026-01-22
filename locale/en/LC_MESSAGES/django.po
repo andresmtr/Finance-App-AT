@@ -1,0 +1,292 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: en\n"
+
+msgid "Personal Finance"
+msgstr "Personal Finance"
+
+msgid "Finance"
+msgstr "Finance"
+
+msgid "Transactions"
+msgstr "Transactions"
+
+msgid "Import PDFs"
+msgstr "Import PDFs"
+
+msgid "Manual Entry"
+msgstr "Manual Entry"
+
+msgid "Logout"
+msgstr "Logout"
+
+msgid "Manual Transaction"
+msgstr "Manual Transaction"
+
+msgid "Add a transaction without importing a PDF."
+msgstr "Add a transaction without importing a PDF."
+
+msgid "Bank"
+msgstr "Bank"
+
+msgid "Account"
+msgstr "Account"
+
+msgid "Date"
+msgstr "Date"
+
+msgid "Time"
+msgstr "Time"
+
+msgid "Amount"
+msgstr "Amount"
+
+msgid "Currency"
+msgstr "Currency"
+
+msgid "Movement Type"
+msgstr "Movement Type"
+
+msgid "-- Select --"
+msgstr "-- Select --"
+
+msgid "Reference"
+msgstr "Reference"
+
+msgid "Merchant"
+msgstr "Merchant"
+
+msgid "Location"
+msgstr "Location"
+
+msgid "Channel"
+msgstr "Channel"
+
+msgid "Description"
+msgstr "Description"
+
+msgid "Save"
+msgstr "Save"
+
+msgid "Cancel"
+msgstr "Cancel"
+
+msgid "Transaction Review"
+msgstr "Transaction Review"
+
+msgid "Pending in this batch:"
+msgstr "Pending in this batch:"
+
+msgid "Save and continue"
+msgstr "Save and continue"
+
+msgid "Skip"
+msgstr "Skip"
+
+msgid "Delete"
+msgstr "Delete"
+
+msgid "PDF"
+msgstr "PDF"
+
+msgid "Page"
+msgstr "Page"
+
+msgid "Table"
+msgstr "Table"
+
+msgid "Import PDF Statements"
+msgstr "Import PDF Statements"
+
+msgid "Upload PDFs to generate transactions for review."
+msgstr "Upload PDFs to generate transactions for review."
+
+msgid "PDFs"
+msgstr "PDFs"
+
+msgid "You can select multiple files."
+msgstr "You can select multiple files."
+
+msgid "Passwords (optional)"
+msgstr "Passwords (optional)"
+
+msgid "Comma-separated if there is more than one."
+msgstr "Comma-separated if there is more than one."
+
+msgid "Process and review"
+msgstr "Process and review"
+
+msgid "Review Complete"
+msgstr "Review Complete"
+
+msgid "Batch"
+msgstr "Batch"
+
+msgid "has no pending transactions."
+msgstr "has no pending transactions."
+
+msgid "No pending transactions to review."
+msgstr "No pending transactions to review."
+
+msgid "View transactions"
+msgstr "View transactions"
+
+msgid "Import another PDF"
+msgstr "Import another PDF"
+
+msgid "Filter and export your data."
+msgstr "Filter and export your data."
+
+msgid "Start date"
+msgstr "Start date"
+
+msgid "End date"
+msgstr "End date"
+
+msgid "Movement type"
+msgstr "Movement type"
+
+msgid "Minimum amount"
+msgstr "Minimum amount"
+
+msgid "Maximum amount"
+msgstr "Maximum amount"
+
+msgid "Apply filters"
+msgstr "Apply filters"
+
+msgid "Clear"
+msgstr "Clear"
+
+msgid "Export CSV"
+msgstr "Export CSV"
+
+msgid "No data available."
+msgstr "No data available."
+
+msgid "Previous"
+msgstr "Previous"
+
+msgid "Next"
+msgstr "Next"
+
+msgid "Financial Summary"
+msgstr "Financial Summary"
+
+msgid "KPIs and trends from your transactions."
+msgstr "KPIs and trends from your transactions."
+
+msgid "Type"
+msgstr "Type"
+
+msgid "Time series"
+msgstr "Time series"
+
+msgid "Daily"
+msgstr "Daily"
+
+msgid "Weekly"
+msgstr "Weekly"
+
+msgid "Monthly"
+msgstr "Monthly"
+
+msgid "Total income"
+msgstr "Total income"
+
+msgid "Total expenses"
+msgstr "Total expenses"
+
+msgid "Net"
+msgstr "Net"
+
+msgid "Monthly average (net)"
+msgstr "Monthly average (net)"
+
+msgid "By movement type"
+msgstr "By movement type"
+
+msgid "Top 10 merchants by spend"
+msgstr "Top 10 merchants by spend"
+
+msgid "Amount by bank"
+msgstr "Amount by bank"
+
+msgid "Average daily net per month"
+msgstr "Average daily net per month"
+
+msgid "Income"
+msgstr "Income"
+
+msgid "Expenses"
+msgstr "Expenses"
+
+msgid "Spend"
+msgstr "Spend"
+
+msgid "Average daily net"
+msgstr "Average daily net"
+
+msgid "Last action results"
+msgstr "Last action results"
+
+msgid "Pending"
+msgstr "Pending"
+
+msgid "Save all changes"
+msgstr "Save all changes"
+
+msgid "Approve selected"
+msgstr "Approve selected"
+
+msgid "Skip selected"
+msgstr "Skip selected"
+
+msgid "Delete selected"
+msgstr "Delete selected"
+
+msgid "Saved"
+msgstr "Saved"
+
+msgid "Approved"
+msgstr "Approved"
+
+msgid "Skipped"
+msgstr "Skipped"
+
+msgid "Deleted"
+msgstr "Deleted"
+
+msgid "Login - Finance"
+msgstr "Login - Finance"
+
+msgid "Sign in"
+msgstr "Sign in"
+
+msgid "Invalid credentials."
+msgstr "Invalid credentials."
+
+msgid "Username"
+msgstr "Username"
+
+msgid "Password"
+msgstr "Password"
+
+msgid "Create account"
+msgstr "Create account"
+
+msgid "Sign up - Finance"
+msgstr "Sign up - Finance"
+
+msgid "Confirm password"
+msgstr "Confirm password"
+
+msgid "Please review the information."
+msgstr "Please review the information."
+
+msgid "Sign up"
+msgstr "Sign up"
+
+msgid "I already have an account"
+msgstr "I already have an account"

@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load formatting %}
+
+{% block content %}
+  <div class="hero">
+    <h1 class="display-6">{% trans "Transaction Review" %}</h1>
+    <p class="mb-0">{% trans "Pending in this batch:" %} {{ pending_count }}</p>
+  </div>
+
+  {% if status_log %}
+    <div class="alert alert-info">
+      <strong>{% trans "Last action results" %}</strong>
+      <ul class="mb-0">
+        {% for item in status_log %}
+          <li>ID {{ item.id }} - {{ item.status }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="table-responsive">
+      <table class="table table-striped align-middle">
+        <thead>
+          <tr>
+            <th></th>
+            <th>{% trans "Bank" %}</th>
+            <th>{% trans "Account" %}</th>
+            <th>{% trans "Date" %}</th>
+            <th>{% trans "Time" %}</th>
+            <th>{% trans "Amount" %}</th>
+            <th>{% trans "Currency" %}</th>
+            <th>{% trans "Movement Type" %}</th>
+            <th>{% trans "Reference" %}</th>
+            <th>{% trans "Merchant" %}</th>
+            <th>{% trans "Location" %}</th>
+            <th>{% trans "Channel" %}</th>
+            <th>{% trans "Description" %}</th>
+            <th>{% trans "Status" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in staged_rows %}
+            <tr>
+              <td>
+                <input type="checkbox" name="row_id" value="{{ row.id }}">
+              </td>
+              <td>
+                <input class="form-control form-control-sm" name="bank_{{ row.id }}" value="{{ row.bank }}">
+              </td>
+              <td>
+                <input class="form-control form-control-sm" name="account_last4_{{ row.id }}" value="{{ row.account_last4 }}">
+              </td>
+              <td>
+                <input class="form-control form-control-sm" type="date" name="date_{{ row.id }}" value="{{ row.date|date:'Y-m-d' }}">
+              </td>
+              <td>
+                <input class="form-control form-control-sm" type="time" name="time_{{ row.id }}" value="{{ row.time|time:'H:i' }}">
+              </td>
+              <td>
+                <input class="form-control form-control-sm" name="amount_{{ row.id }}" value="{{ row.amount }}">
+              </td>
+              <td>
+                <input class="form-control form-control-sm" name="currency_{{ row.id }}" value="{{ row.currency }}">
+              </td>
+              <td>
+                <select class="form-select form-select-sm" name="movement_type_{{ row.id }}">
+                  <option value="">{% trans "-- Select --" %}</option>
+                  {% for mt in movement_types %}
+                    <option value="{{ mt.name }}" {% if row.movement_type and row.movement_type.name == mt.name %}selected{% endif %}>
+                      {{ mt.name }}
+                    </option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td>
+                <input class="form-control form-control-sm" name="reference_{{ row.id }}" value="{{ row.reference }}">
+              </td>
+              <td>
+                <input class="form-control form-control-sm" name="merchant_{{ row.id }}" value="{{ row.merchant }}">
+              </td>
+              <td>
+                <input class="form-control form-control-sm" name="location_{{ row.id }}" value="{{ row.location }}">
+              </td>
+              <td>
+                <input class="form-control form-control-sm" name="channel_{{ row.id }}" value="{{ row.channel }}">
+              </td>
+              <td>
+                <textarea class="form-control form-control-sm" name="description_{{ row.id }}" rows="2">{{ row.description }}</textarea>
+              </td>
+              <td>{{ status_map|get_item:row.id|default:_("Pending") }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="d-flex gap-2">
+      <button class="btn btn-primary" type="submit" name="action" value="save_all">
+        {% trans "Save all changes" %}
+      </button>
+      <button class="btn btn-success" type="submit" name="action" value="approve_selected">
+        {% trans "Approve selected" %}
+      </button>
+      <button class="btn btn-outline-secondary" type="submit" name="action" value="skip_selected">
+        {% trans "Skip selected" %}
+      </button>
+      <button class="btn btn-outline-danger" type="submit" name="action" value="delete_selected">
+        {% trans "Delete selected" %}
+      </button>
+      <a class="btn btn-outline-primary" href="/transactions/manual/">{% trans "Manual Entry" %}</a>
+    </div>
+  </form>
+{% endblock %}

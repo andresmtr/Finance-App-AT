@@ -1,9 +1,11 @@
+{% load i18n %}
+{% get_current_language as LANGUAGE_CODE %}
 <!doctype html>
-<html lang="es">
+<html lang="{{ LANGUAGE_CODE }}">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Finanzas Personales</title>
+    <title>{% trans "Personal Finance" %}</title>
     <link
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
       rel="stylesheet"
@@ -36,18 +38,29 @@
   <body>
     <nav class="navbar navbar-expand-lg navbar-dark" style="background:#1d3557;">
       <div class="container">
-        <a class="navbar-brand" href="/">Finanzas</a>
+        <a class="navbar-brand" href="/">{% trans "Finance" %}</a>
         <div class="ms-auto d-flex gap-3">
-          <a class="btn btn-outline-light" href="/transactions/">Transacciones</a>
+          <a class="btn btn-outline-light" href="/transactions/">{% trans "Transactions" %}</a>
           {% if user.is_authenticated %}
+            <a class="btn btn-outline-light" href="/imports/">{% trans "Import PDFs" %}</a>
+            <a class="btn btn-outline-light" href="/transactions/manual/">{% trans "Manual Entry" %}</a>
             <form method="post" action="/logout/">
               {% csrf_token %}
-              <button class="btn btn-outline-light" type="submit">Salir</button>
+              <button class="btn btn-outline-light" type="submit">{% trans "Logout" %}</button>
             </form>
           {% endif %}
-          <form method="post" action="/update/">
+          <form method="post" action="/i18n/setlang/">
             {% csrf_token %}
-            <button class="btn btn-warning" type="submit">Actualizar</button>
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <select class="form-select form-select-sm" name="language" onchange="this.form.submit()">
+              {% get_current_language as LANGUAGE_CODE %}
+              {% get_available_languages as LANGUAGES %}
+              {% for lang_code, lang_name in LANGUAGES %}
+                <option value="{{ lang_code }}" {% if lang_code == LANGUAGE_CODE %}selected{% endif %}>
+                  {{ lang_name }}
+                </option>
+              {% endfor %}
+            </select>
           </form>
         </div>
       </div>
