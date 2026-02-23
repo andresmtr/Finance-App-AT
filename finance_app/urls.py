@@ -20,6 +20,8 @@ urlpatterns = [
     path("imports/", transaction_views.import_pdfs, name="import_pdfs"),
     path("imports/<int:batch_id>/review/", transaction_views.review_next, name="review_next"),
     path("transactions/manual/", transaction_views.manual_transaction, name="manual_transaction"),
+    path("transactions/<int:pk>/edit/", transaction_views.edit_transaction, name="edit_transaction"),
+    path("transactions/<int:pk>/delete/", transaction_views.delete_transaction, name="delete_transaction"),
     path("update/", core_views.update_data, name="update_data"),
     path("health/", core_views.health, name="health"),
 ]

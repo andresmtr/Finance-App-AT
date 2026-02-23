@@ -61,9 +61,9 @@ DATABASES = {
     }
 }
 
-LANGUAGE_CODE = "es-co"
+LANGUAGE_CODE = "es"
 LANGUAGES = [
-    ("es", "Espanol"),
+    ("es", "Español"),
     ("en", "English"),
 ]
 TIME_ZONE = "America/Bogota"

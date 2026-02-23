@@ -28,46 +28,50 @@ LANG_OCR = "spa+eng"
 TESS_CONFIG = "--psm 6"
 
 TABLE_DET_MODEL = "microsoft/table-transformer-detection"
-DETECTION_SCORE_THRESHOLD = 0.40
-SECONDARY_THRESHOLD = 0.30
+DETECTION_SCORE_THRESHOLD = 0.25
+SECONDARY_THRESHOLD = 0.15
 
 # Debug vía env
 DEBUG_TABLES = os.getenv("PDF_DEBUG", "0") == "1"
 DEBUG_SHOW_SAMPLES = 2
 
 HEADER_SYNONYMS = {
-    "date": ["fecha", "date", "fec", "fecha mov", "fecha movimiento"],
+    "date": ["fecha", "date", "fec", "fecha mov", "fecha movimiento", "fecha transaccion", "fecha transacción"],
+    "day": ["dia", "día", "day", "dd"],
+    "month": ["mes", "month", "mm"],
     "time": ["hora", "time"],
     "amount": ["valor", "value", "amount", "importe", "monto", "total", "transacción", "transaccion"],
-    "debit": ["debito", "débito", "cargo", "retiro", "egreso", "salida", "dr"],
-    "credit": ["credito", "crédito", "abono", "ingreso", "entrada", "cr"],
+    "debit": ["debito", "débito", "cargo", "cargos", "retiro", "egreso", "salida", "dr", "compras", "avances", "intereses", "intereses de mora", "cuota de manejo", "otros cargos"],
+    "credit": ["credito", "crédito", "abono", "abonos", "ingreso", "entrada", "cr", "pagos", "total pagado", "saldo a favor"],
     "description": [
         "descripcion", "descripción", "description", "movimiento", "movimientos",
-        "clase de movimiento", "detalle", "concepto"
+        "clase de movimiento", "detalle", "concepto", "establecimiento", "comercio"
     ],
     "reference": [
-        "documento", "doc", "ref", "referencia", "cod", "cod trans", "cód trans",
-        "número", "numero", "no.", "num", "nro", "trans", "codtrans", "aut", "autoriz"
-    ],
+        "documento", "doc", "ref", "referencia", "cod", "cod trans", "cód trans", "cod trasaccion",
+        "número", "numero", "no.", "num", "nro", "trans", "codtrans", "aut", "autoriz", "codigo", "código", "codio", "doc."]
+    ,
     "location": ["ciudad", "city", "lugar"],
     "channel": ["oficina", "canal", "oficina/canal", "channel", "sucursal", "app", "cajero"],
     "balance": ["saldo", "balance", "sldo", "saldo disponible", "saldo total"],
 }
 
 MONTHS_ES = {
-    "ene": 1, "enero": 1,
-    "feb": 2, "febrero": 2,
-    "mar": 3, "marzo": 3,
-    "abr": 4, "abril": 4,
+    "ene": 1, "enero": 1, "jan": 1, "january": 1,
+    "feb": 2, "febrero": 2, "february": 2,
+    "mar": 3, "marzo": 3, "march": 3,
+    "abr": 4, "abril": 4, "apr": 4, "april": 4,
     "may": 5, "mayo": 5,
-    "jun": 6, "junio": 6,
-    "jul": 7, "julio": 7,
-    "ago": 8, "agosto": 8,
-    "sep": 9, "sept": 9, "septiembre": 9,
-    "oct": 10, "octubre": 10,
-    "nov": 11, "noviembre": 11,
-    "dic": 12, "diciembre": 12,
+    "jun": 6, "junio": 6, "june": 6,
+    "jul": 7, "julio": 7, "july": 7,
+    "ago": 8, "agosto": 8, "aug": 8, "august": 8,
+    "sep": 9, "sept": 9, "septiembre": 9, "sep": 9, "september": 9,
+    "oct": 10, "octubre": 10, "october": 10,
+    "nov": 11, "noviembre": 11, "november": 11,
+    "dic": 12, "diciembre": 12, "dec": 12, "december": 12,
 }
+
+MONTH_REGEX_STR = r"(ene|enero|jan|january|feb|febrero|february|mar|marzo|march|abr|abril|apr|april|may|mayo|jun|junio|june|jul|julio|july|ago|agosto|aug|august|sep|sept|septiembre|september|oct|octubre|october|nov|noviembre|november|dic|diciembre|dec|december)"
 
 # ===========================
 # Helpers
@@ -122,9 +126,10 @@ def classify_movement_type(description: str) -> str:
         ("cdt", ["cdt", "certificado de deposito", "certificado de depósito", "título", "titulo"]),
         ("intereses", ["interes", "interés", "rendimiento", "rendimientos"]),
         ("impuesto", ["gmf", "4x1000", "impuesto", "retencion", "retención", "iva"]),
+        ("cuota de manejo", ["cuota de manejo", "cuota manejo", "manejo"]),
         ("retiro", ["retiro", "atm", "cajero", "withdrawal"]),
         ("transferencia", ["transferencia", "transf", "pse", "ach", "envio", "envío"]),
-        ("pago", ["pago", "cuota", "tarj", "tarjeta", "credito", "crédito", "servicio", "manejo"]),
+        ("pago", ["pago", "cuota", "tarj", "tarjeta", "credito", "crédito", "servicio"]),
         ("compra", ["compra", "pos", "datáfono", "datafono", "comercio", "apple.com", "bill", "supermercado", "mercado"]),
         ("abono", ["abono", "consignacion", "consignación", "deposito", "depósito", "ingreso", "recaudo"]),
     ]
@@ -168,7 +173,7 @@ def parse_amount_string(raw: str) -> Optional[float]:
         return None
 
     neg = False
-    if re.search(r"(^\s*-\s*)|(\(\s*)", s):
+    if re.search(r"(^\s*-\s*)|(\(\s*)|(\s*-\s*$)", s):
         neg = True
 
     s2 = re.sub(r"[^\d,.\-()]", "", s)
@@ -215,7 +220,7 @@ def parse_amount_and_currency(
 
 
 # Extra: fallback montos desde texto
-AMT_FALLBACK_RE = re.compile(r"(?<!\w)(\(?-?\$?\s*\d{1,3}(?:[.,\s]\d{3})*(?:[.,]\d{1,2})?\)?)(?!\w)")
+AMT_FALLBACK_RE = re.compile(r"(?<!\w)(\(?-?\$?\s*\d{1,3}(?:[.,\s]\d{3})*(?:[.,]\d{1,2})?\)?\s*-?)(?!\w)")
 
 
 def _score_amount_candidate(cand: str, full: str) -> tuple:
@@ -270,7 +275,7 @@ def infer_statement_year(text: str) -> Optional[int]:
     if m:
         return int(m.group(2))
     m = re.search(
-        r"(ene|enero|feb|febrero|mar|marzo|abr|abril|may|mayo|jun|junio|jul|julio|ago|agosto|sep|sept|septiembre|oct|octubre|nov|noviembre|dic|diciembre)\D{0,10}((19|20)\d{2})",
+        rf"{MONTH_REGEX_STR}\D{{0,10}}((19|20)\d{{2}})",
         t,
         re.IGNORECASE,
     )
@@ -324,7 +329,7 @@ def normalize_date_str(date_raw: str, statement_year: Optional[int]) -> str:
 
     s2 = _norm(s_clean)
     m = re.search(
-        r"\b(\d{1,2})\s*(ene|enero|feb|febrero|mar|marzo|abr|abril|may|mayo|jun|junio|jul|julio|ago|agosto|sep|sept|septiembre|oct|octubre|nov|noviembre|dic|diciembre)\s*((19|20)\d{2})?\b",
+        rf"\b(\d{{1,2}})\s*{MONTH_REGEX_STR}\s*((19|20)\d{{2}})?\b",
         s2,
     )
     if m:
@@ -340,7 +345,7 @@ def normalize_date_str(date_raw: str, statement_year: Optional[int]) -> str:
     return ""
 
 
-DATE_FALLBACK_RE = re.compile(r"\b(\d{1,2}\s*/\s*\d{1,2}(?:\s*/\s*\d{2,4})?)\b")
+DATE_FALLBACK_RE = re.compile(r"\b(\d{1,2}\s*[/|\-|\\]\s*\d{1,2}(?:\s*[/|\-|\\]\s*\d{2,4})?)\b")
 
 
 def date_from_row_fallback(row_txt: str, statement_year: Optional[int]) -> str:
@@ -350,11 +355,22 @@ def date_from_row_fallback(row_txt: str, statement_year: Optional[int]) -> str:
     if m:
         return normalize_date_str(m.group(1), statement_year)
     m2 = re.search(
-        r"\b(\d{1,2})\s*(ene|enero|feb|febrero|mar|marzo|abr|abril|may|mayo|jun|junio|jul|julio|ago|agosto|sep|sept|septiembre|oct|octubre|nov|noviembre|dic|diciembre)\b",
+        rf"\b(\d{{1,2}})\s*{MONTH_REGEX_STR}\b",
         _norm(row_txt),
     )
     if m2:
         return normalize_date_str(m2.group(0), statement_year)
+        
+    m3 = re.search(r"^\s*(\d{1,2})\s+(\d{1,2})\b", row_txt)
+    if m3:
+        # Check if they form a valid day and month
+        try:
+            d, mo = int(m3.group(1)), int(m3.group(2))
+            if 1 <= d <= 31 and 1 <= mo <= 12:
+                return normalize_date_str(f"{d}/{mo}", statement_year)
+        except Exception:
+            pass
+            
     return ""
 
 
@@ -540,6 +556,10 @@ def pick_header_row(w: pd.DataFrame) -> Optional[int]:
         score = 0
         if _contains_any(t, HEADER_SYNONYMS["date"]):
             score += 3
+        if "day" in HEADER_SYNONYMS and _contains_any(t, HEADER_SYNONYMS["day"]):
+            score += 1.5
+        if "month" in HEADER_SYNONYMS and _contains_any(t, HEADER_SYNONYMS["month"]):
+            score += 1.5
         if _contains_any(t, HEADER_SYNONYMS["description"]):
             score += 3
         if _contains_any(t, HEADER_SYNONYMS["amount"]):
@@ -608,6 +628,10 @@ def map_header_to_field(htxt: str) -> Optional[str]:
     ht = _norm(htxt)
     if _contains_any(ht, HEADER_SYNONYMS["date"]):
         return "date"
+    if "day" in HEADER_SYNONYMS and _contains_any(ht, HEADER_SYNONYMS["day"]):
+        return "day"
+    if "month" in HEADER_SYNONYMS and _contains_any(ht, HEADER_SYNONYMS["month"]):
+        return "month"
     if _contains_any(ht, HEADER_SYNONYMS["time"]):
         return "time"
     if _contains_any(ht, HEADER_SYNONYMS["description"]):
@@ -652,19 +676,28 @@ def parse_table_image_to_transactions(
     bank: str,
     last4: str,
     statement_year: Optional[int],
+    prev_cols: Optional[List[Tuple[float, float, str]]] = None,
+    prev_col_map: Optional[Dict[str, int]] = None,
 ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     words = cluster_rows(ocr_data_df(table_img))
     header_rid = pick_header_row(words)
+    
     if header_rid is None:
-        return [], {"error": "No header detected"}
-
-    cols = infer_columns_from_header(words, header_rid)
-
-    col_map: Dict[str, int] = {}
-    for i, (_, _, htxt) in enumerate(cols):
-        f = map_header_to_field(htxt)
-        if f and f not in col_map:
-            col_map[f] = i
+        if prev_cols and prev_col_map:
+            cols = prev_cols
+            col_map = prev_col_map
+            header_rid = -1  # process all rows
+            header_txt = "inherited_from_prev"
+        else:
+            return [], {"error": "No header detected"}
+    else:
+        cols = infer_columns_from_header(words, header_rid)
+        col_map = {}
+        for i, (_, _, htxt) in enumerate(cols):
+            f = map_header_to_field(htxt)
+            if f and f not in col_map:
+                col_map[f] = i
+        header_txt = row_text(words, header_rid)
 
     words2 = assign_words_to_cols(words, cols)
 
@@ -685,6 +718,12 @@ def parse_table_image_to_transactions(
 
     for rid in row_ids:
         date_raw = cell_text(rid, col_map["date"]) if "date" in col_map else ""
+        day_raw = cell_text(rid, col_map["day"]) if "day" in col_map else ""
+        month_raw = cell_text(rid, col_map["month"]) if "month" in col_map else ""
+
+        if not date_raw and (day_raw or month_raw):
+            date_raw = f"{day_raw} {month_raw}".strip()
+
         time = cell_text(rid, col_map["time"]) if "time" in col_map else ""
         desc = cell_text(rid, col_map["description"]) if "description" in col_map else row_text(words2, rid)
 
@@ -764,6 +803,7 @@ def parse_table_image_to_transactions(
     dbg = {
         "header_row_id": header_rid,
         "header_text": header_txt,
+        "cols": cols,
         "col_map": col_map,
         "n_cols": len(cols),
         "rows_total_after_header": len(row_ids),
@@ -780,9 +820,51 @@ def fullpage_fallback_transactions(
     bank: str,
     last4: str,
     statement_year: Optional[int],
+    prev_cols: Optional[List[Tuple[float, float, str]]] = None,
+    prev_col_map: Optional[Dict[str, int]] = None,
 ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-    txs, dbg = parse_table_image_to_transactions(page_img, bank, last4, statement_year)
+    txs, dbg = parse_table_image_to_transactions(page_img, bank, last4, statement_year, prev_cols, prev_col_map)
     dbg["fullpage_fallback"] = True
+    
+    if txs:
+        return txs, dbg
+        
+    # Pure regex line-by-line fallback if header was not found
+    words = cluster_rows(ocr_data_df(page_img))
+    if words.empty:
+        return [], dbg
+        
+    row_ids = words["row_id"].unique().tolist()
+    kept = 0
+    for rid in row_ids:
+        txt = row_text(words, rid)
+        date_iso = date_from_row_fallback(txt, statement_year)
+        amount = parse_amount_from_text_fallback(txt)
+        
+        if date_iso and amount is not None:
+            # We found something that looks like a transaction row
+            tx = {
+                "bank": bank,
+                "account_last4": last4,
+                "date": date_iso,
+                "time": "",
+                "amount": amount,
+                "currency": infer_currency(txt),
+                "movement_type": classify_movement_type(txt),
+                "reference": "",
+                "merchant": "",
+                "location": "",
+                "channel": "",
+                "description": txt,
+                "id": uuid.uuid4().hex,
+            }
+            txs.append(tx)
+            kept += 1
+            
+    if kept > 0:
+        dbg["regex_fallback_used"] = True
+        dbg["kept_regex"] = kept
+        
     return txs, dbg
 
 
@@ -820,6 +902,17 @@ def parse_pdf_file(
     bank, last4 = detect_bank_and_last4(first_txt)
     statement_year = infer_statement_year(first_txt)
 
+    # Si no detectamos el año en la primera página, buscamos en el resto
+    if not statement_year and len(pages) > 1:
+        for p in pages[1:]:
+            try:
+                txt = pytesseract.image_to_string(p.convert("L"), lang=LANG_OCR, config=TESS_CONFIG)
+                statement_year = infer_statement_year(txt)
+                if statement_year:
+                    break
+            except Exception:
+                continue
+
     if DEBUG_TABLES:
         print(
             f"\n📄 {Path(pdf_path).name} | pages={len(pages)} | render={method}{' (pw)' if used_pw else ''} "
@@ -828,6 +921,9 @@ def parse_pdf_file(
 
     txs: List[Dict[str, Any]] = []
     dbg_list: List[Dict[str, Any]] = []
+    
+    last_valid_cols = None
+    last_valid_col_map = None
 
     for p_idx, page_img in enumerate(pages, start=1):
         try:
@@ -849,7 +945,15 @@ def parse_pdf_file(
             x0, y0, x1, y1 = pad_bbox(d["bbox"], page_img.size[0], page_img.size[1], pad=18)
             crop = page_img.crop((x0, y0, x1, y1))
 
-            rows, dbg = parse_table_image_to_transactions(crop, bank, last4, statement_year)
+            rows, dbg = parse_table_image_to_transactions(
+                crop, bank, last4, statement_year, 
+                prev_cols=last_valid_cols, prev_col_map=last_valid_col_map
+            )
+            
+            if dbg.get("col_map") and dbg.get("cols"):
+                last_valid_cols = dbg.get("cols")
+                last_valid_col_map = dbg.get("col_map")
+                
             dbg_list.append({
                 "pdf": Path(pdf_path).name,
                 "page": p_idx,
@@ -875,7 +979,15 @@ def parse_pdf_file(
 
         # fallback página completa
         if (len(dets) == 0) or (page_got_rows == 0):
-            fallback_rows, fdbg = fullpage_fallback_transactions(page_img, bank, last4, statement_year)
+            fallback_rows, fdbg = fullpage_fallback_transactions(
+                page_img, bank, last4, statement_year,
+                prev_cols=last_valid_cols, prev_col_map=last_valid_col_map
+            )
+            
+            if fdbg.get("col_map") and fdbg.get("cols"):
+                last_valid_cols = fdbg.get("cols")
+                last_valid_col_map = fdbg.get("col_map")
+                
             dbg_list.append({
                 "pdf": Path(pdf_path).name,
                 "page": p_idx,

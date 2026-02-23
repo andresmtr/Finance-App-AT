@@ -6,67 +6,166 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% trans "Personal Finance" %}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
       rel="stylesheet"
     >
     <style>
       body {
-        background: #f6f3ef;
+        background: #f4f6f9;
+        font-family: 'Inter', sans-serif;
+        color: #334155;
+      }
+      .navbar {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        padding: 1rem 0;
+      }
+      .navbar-brand {
+        font-weight: 700;
+        letter-spacing: -0.5px;
+      }
+      .btn {
+        font-weight: 500;
+        border-radius: 8px;
+        transition: all 0.2s;
+      }
+      .btn-outline-light:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(255,255,255,0.2);
+      }
+      .btn-primary {
+        background-color: #2563eb;
+        border-color: #2563eb;
+      }
+      .btn-primary:hover {
+        background-color: #1d4ed8;
+        border-color: #1d4ed8;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+      }
+      .card {
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.04);
+        transition: transform 0.2s, box-shadow 0.2s;
       }
       .hero {
-        background: linear-gradient(120deg, #1d3557, #457b9d);
-        color: #fff;
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        color: #f8fafc;
         border-radius: 16px;
-        padding: 2rem;
+        padding: 3rem 2rem;
         margin-bottom: 2rem;
+        box-shadow: 0 10px 25px rgba(15, 23, 42, 0.15);
+      }
+      .hero h1 {
+        font-weight: 700;
+        letter-spacing: -1px;
       }
       .kpi {
-        background: #fff;
+        background: #ffffff;
         border-radius: 14px;
-        padding: 1.25rem;
-        box-shadow: 0 6px 16px rgba(0,0,0,0.08);
+        padding: 1.5rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        border: 1px solid #e2e8f0;
+        transition: transform 0.2s;
+      }
+      .kpi:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.06);
+      }
+      .kpi-title {
+        color: #64748b;
+        font-size: 0.875rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 0.5rem;
+      }
+      .kpi-value {
+        color: #0f172a;
+        font-size: 1.75rem;
+        font-weight: 700;
+        margin: 0;
       }
       .chart-card {
-        background: #fff;
+        background: #ffffff;
         border-radius: 16px;
         padding: 1.5rem;
-        box-shadow: 0 6px 16px rgba(0,0,0,0.08);
+        box-shadow: 0 4px 16px rgba(0,0,0,0.04);
+        border: 1px solid #e2e8f0;
       }
+      .chart-title {
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 1.5rem;
+      }
+      .table {
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .table thead th {
+        background: #f8fafc;
+        color: #475569;
+        font-weight: 600;
+        border-bottom: 2px solid #e2e8f0;
+        padding: 1rem;
+      }
+      .table tbody td {
+        padding: 1rem;
+        vertical-align: middle;
+        border-bottom: 1px solid #f1f5f9;
+        color: #334155;
+      }
+      .table tbody tr:hover {
+        background-color: #f8fafc;
+      }
+      .badge-income { background-color: #dcfce7; color: #166534; font-weight: 600; padding: 0.4em 0.8em; }
+      .badge-expense { background-color: #fee2e2; color: #991b1b; font-weight: 600; padding: 0.4em 0.8em; }
     </style>
   </head>
   <body>
-    <nav class="navbar navbar-expand-lg navbar-dark" style="background:#1d3557;">
+    <nav class="navbar navbar-expand-lg navbar-dark" style="background:#0f172a;">
       <div class="container">
-        <a class="navbar-brand" href="/">{% trans "Finance" %}</a>
-        <div class="ms-auto d-flex gap-3">
-          <a class="btn btn-outline-light" href="/transactions/">{% trans "Transactions" %}</a>
-          {% if user.is_authenticated %}
-            <a class="btn btn-outline-light" href="/imports/">{% trans "Import PDFs" %}</a>
-            <a class="btn btn-outline-light" href="/transactions/manual/">{% trans "Manual Entry" %}</a>
-            <form method="post" action="/logout/">
+        <a class="navbar-brand d-flex align-items-center gap-2" href="/">
+          <i class="fa-solid fa-wallet text-primary"></i>
+          {% trans "Finance App" %}
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <div class="ms-auto d-flex align-items-center gap-3">
+            <a class="btn btn-sm btn-outline-light" href="/transactions/"><i class="fa-solid fa-list-ul me-1"></i> {% trans "Transactions" %}</a>
+            {% if user.is_authenticated %}
+              <a class="btn btn-sm btn-outline-light" href="/imports/"><i class="fa-solid fa-file-pdf me-1"></i> {% trans "Import PDFs" %}</a>
+              <a class="btn btn-sm btn-outline-light" href="/transactions/manual/"><i class="fa-solid fa-plus me-1"></i> {% trans "Manual Entry" %}</a>
+              <form method="post" action="/logout/" class="m-0">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-outline-danger" type="submit"><i class="fa-solid fa-right-from-bracket me-1"></i> {% trans "Logout" %}</button>
+              </form>
+            {% endif %}
+            <form method="post" action="/i18n/setlang/" class="m-0">
               {% csrf_token %}
-              <button class="btn btn-outline-light" type="submit">{% trans "Logout" %}</button>
+              <input type="hidden" name="next" value="{{ request.path }}">
+              <select class="form-select form-select-sm" name="language" onchange="this.form.submit()" style="background-color: #1e293b; color: #fff; border: 1px solid #334155;">
+                {% get_current_language as LANGUAGE_CODE %}
+                {% get_available_languages as LANGUAGES %}
+                {% for lang_code, lang_name in LANGUAGES %}
+                  <option value="{{ lang_code }}" {% if lang_code == LANGUAGE_CODE %}selected{% endif %}>
+                    {{ lang_name }}
+                  </option>
+                {% endfor %}
+              </select>
             </form>
-          {% endif %}
-          <form method="post" action="/i18n/setlang/">
-            {% csrf_token %}
-            <input type="hidden" name="next" value="{{ request.path }}">
-            <select class="form-select form-select-sm" name="language" onchange="this.form.submit()">
-              {% get_current_language as LANGUAGE_CODE %}
-              {% get_available_languages as LANGUAGES %}
-              {% for lang_code, lang_name in LANGUAGES %}
-                <option value="{{ lang_code }}" {% if lang_code == LANGUAGE_CODE %}selected{% endif %}>
-                  {{ lang_name }}
-                </option>
-              {% endfor %}
-            </select>
-          </form>
+          </div>
         </div>
       </div>
     </nav>
 
-    <main class="container py-4">
+    <main class="{% block container_class %}container{% endblock %} py-4" {% block container_style %}{% endblock %}>
       {% if messages %}
         {% for message in messages %}
           <div class="alert alert-{{ message.tags }}" role="alert">

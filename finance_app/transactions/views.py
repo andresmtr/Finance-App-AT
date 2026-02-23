@@ -154,11 +154,18 @@ def transactions(request: HttpRequest) -> HttpResponse:
             }
             for row in export_rows
         ]
-        csv_data = ""
         if export_frame:
-            csv_data = pd.DataFrame(export_frame)[COLUMNS].to_csv(index=False)
-        response = HttpResponse(csv_data, content_type="text/csv")
-        response["Content-Disposition"] = "attachment; filename=transacciones.csv"
+            import io
+            df = pd.DataFrame(export_frame)[COLUMNS]
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                df.to_excel(writer, index=False)
+            output.seek(0)
+            file_data = output.read()
+        else:
+            file_data = b""
+        response = HttpResponse(file_data, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        response["Content-Disposition"] = "attachment; filename=transacciones.xlsx"
         return response
 
     paginator = Paginator(filtered.order_by("-date", "-time"), 25)
@@ -334,4 +341,58 @@ def manual_transaction(request: HttpRequest) -> HttpResponse:
         )
         return redirect("transactions")
 
-    return render(request, "transactions/manual_form.html", {"movement_types": movement_types})
+    return render(
+        request,
+        "transactions/manual_form.html",
+        {"movement_types": movement_types, "title": _("Manual Transaction")},
+    )
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def edit_transaction(request: HttpRequest, pk: int) -> HttpResponse:
+    tx = get_object_or_404(Transaction, pk=pk, user=request.user)
+    movement_types = MovementType.objects.filter(is_active=True).order_by("name")
+
+    if request.method == "POST":
+        movement_type_name = request.POST.get("movement_type")
+        movement_type = (
+            movement_types.filter(name=movement_type_name).first()
+            if movement_type_name
+            else None
+        )
+
+        tx.bank = request.POST.get("bank", "") or ""
+        tx.account_last4 = request.POST.get("account_last4", "") or ""
+        tx.date = _parse_date(request.POST.get("date"))
+        tx.time = _parse_time(request.POST.get("time"))
+        tx.amount = _parse_decimal(request.POST.get("amount")) or Decimal("0.00")
+        tx.currency = request.POST.get("currency", "") or ""
+        tx.movement_type = movement_type
+        tx.reference = request.POST.get("reference", "") or ""
+        tx.merchant = request.POST.get("merchant", "") or ""
+        tx.location = request.POST.get("location", "") or ""
+        tx.channel = request.POST.get("channel", "") or ""
+        tx.description = request.POST.get("description", "") or ""
+        tx.external_id = request.POST.get("external_id", "") or ""
+        tx.save()
+
+        return redirect("transactions")
+
+    return render(
+        request,
+        "transactions/manual_form.html",
+        {
+            "transaction": tx,
+            "movement_types": movement_types,
+            "title": _("Edit Transaction"),
+        },
+    )
+
+
+@login_required
+@require_http_methods(["POST"])
+def delete_transaction(request: HttpRequest, pk: int) -> HttpResponse:
+    tx = get_object_or_404(Transaction, pk=pk, user=request.user)
+    tx.delete()
+    return redirect("transactions")

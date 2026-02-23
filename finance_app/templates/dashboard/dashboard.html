@@ -2,123 +2,136 @@
 {% load i18n %}
 {% load formatting %}
 
+{% block container_class %}container-fluid px-4{% endblock %}
+
 {% block content %}
-  <div class="hero">
+  <div class="hero mb-4 py-4 px-4">
     <h1 class="display-6">{% trans "Financial Summary" %}</h1>
     <p class="mb-0">{% trans "KPIs and trends from your transactions." %}</p>
   </div>
 
-  <form method="get" class="row g-3 mb-4">
-    <div class="col-md-4">
-      <label class="form-label">{% trans "Bank" %}</label>
-      <select name="bank" class="form-select">
-        <option value="">Todos</option>
-        {% for bank in banks %}
-          <option value="{{ bank }}" {% if filters.bank == bank %}selected{% endif %}>{{ bank }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="col-md-4">
-      <label class="form-label">{% trans "Account" %}</label>
-      <select name="account_last4" class="form-select">
-        <option value="">Todas</option>
-        {% for account in accounts %}
-          <option value="{{ account }}" {% if filters.account_last4 == account %}selected{% endif %}>{{ account }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="col-md-4">
-      <label class="form-label">{% trans "Type" %}</label>
-      <select name="movement_type" class="form-select">
-        <option value="">Todos</option>
-        {% for movement in movement_types %}
-          <option value="{{ movement }}" {% if filters.movement_type == movement %}selected{% endif %}>{{ movement }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="col-md-4">
-      <label class="form-label">{% trans "Time series" %}</label>
-      <select name="granularity" class="form-select">
-        <option value="daily" {% if granularity == "daily" %}selected{% endif %}>{% trans "Daily" %}</option>
-        <option value="weekly" {% if granularity == "weekly" %}selected{% endif %}>{% trans "Weekly" %}</option>
-        <option value="monthly" {% if granularity == "monthly" %}selected{% endif %}>{% trans "Monthly" %}</option>
-      </select>
-    </div>
-    <div class="col-md-4">
-      <label class="form-label">{% trans "Reference" %}</label>
-      <input type="text" name="reference" class="form-control" value="{{ filters.reference }}">
-    </div>
-    <div class="col-12 d-flex gap-2">
-      <button type="submit" class="btn btn-primary">{% trans "Apply filters" %}</button>
-      <a class="btn btn-outline-secondary" href="/">{% trans "Clear" %}</a>
-    </div>
-  </form>
-
-  <div class="row g-4 mb-4">
-    <div class="col-md-4">
-      <div class="kpi">
-        <h6 class="text-muted">{% trans "Total income" %}</h6>
-        <h3>${{ total_income|money_es }}</h3>
+  <div class="card mb-4 p-4">
+    <form method="get" class="row g-3">
+      <div class="col-md-2">
+        <label class="form-label small fw-bold text-muted">{% trans "Bank" %}</label>
+        <select name="bank" class="form-select form-select-sm">
+          <option value="">{% trans "All" %}</option>
+          {% for bank in banks %}
+            <option value="{{ bank }}" {% if filters.bank == bank %}selected{% endif %}>{{ bank }}</option>
+          {% endfor %}
+        </select>
       </div>
-    </div>
-    <div class="col-md-4">
-      <div class="kpi">
-        <h6 class="text-muted">{% trans "Total expenses" %}</h6>
-        <h3>${{ total_expense|money_es }}</h3>
+      <div class="col-md-2">
+        <label class="form-label small fw-bold text-muted">{% trans "Account" %}</label>
+        <select name="account_last4" class="form-select form-select-sm">
+          <option value="">{% trans "All" %}</option>
+          {% for account in accounts %}
+            <option value="{{ account }}" {% if filters.account_last4 == account %}selected{% endif %}>{{ account }}</option>
+          {% endfor %}
+        </select>
       </div>
-    </div>
-    <div class="col-md-4">
-      <div class="kpi">
-        <h6 class="text-muted">{% trans "Net" %}</h6>
-        <h3>${{ net|money_es }}</h3>
+      <div class="col-md-3">
+        <label class="form-label small fw-bold text-muted">{% trans "Type" %}</label>
+        <select name="movement_type" class="form-select form-select-sm">
+          <option value="">{% trans "All" %}</option>
+          {% for movement in movement_types %}
+            <option value="{{ movement }}" {% if filters.movement_type == movement %}selected{% endif %}>{{ movement }}</option>
+          {% endfor %}
+        </select>
       </div>
-    </div>
+      <div class="col-md-2">
+        <label class="form-label small fw-bold text-muted">{% trans "Time series" %}</label>
+        <select name="granularity" class="form-select form-select-sm">
+          <option value="daily" {% if granularity == "daily" %}selected{% endif %}>{% trans "Daily" %}</option>
+          <option value="weekly" {% if granularity == "weekly" %}selected{% endif %}>{% trans "Weekly" %}</option>
+          <option value="monthly" {% if granularity == "monthly" %}selected{% endif %}>{% trans "Monthly" %}</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small fw-bold text-muted">{% trans "Reference" %}</label>
+        <input type="text" name="reference" class="form-control form-control-sm" value="{{ filters.reference }}">
+      </div>
+      <div class="col-12 d-flex gap-2">
+        <button type="submit" class="btn btn-sm btn-primary">{% trans "Apply filters" %}</button>
+        <a class="btn btn-sm btn-outline-secondary" href="/">{% trans "Clear" %}</a>
+      </div>
+    </form>
   </div>
 
-  <div class="row g-4 mb-4">
-    <div class="col-md-4">
-      <div class="kpi">
-        <h6 class="text-muted">{% trans "Transactions" %}</h6>
-        <h3>{{ tx_count|int_es }}</h3>
+  <div class="row g-3 mb-4">
+    <div class="col-xl-2 col-md-4 col-sm-6">
+      <div class="kpi p-3 text-center">
+        <h6 class="text-muted mb-2" style="font-size:0.8rem;">{% trans "Total income" %}</h6>
+        <h4 class="text-success mb-0">${{ total_income|money_es }}</h4>
       </div>
     </div>
-    <div class="col-md-4">
-      <div class="kpi">
-        <h6 class="text-muted">{% trans "Monthly average (net)" %}</h6>
-        <h3>${{ avg_monthly_net|money_es }}</h3>
+    <div class="col-xl-2 col-md-4 col-sm-6">
+      <div class="kpi p-3 text-center">
+        <h6 class="text-muted mb-2" style="font-size:0.8rem;">{% trans "Total expenses" %}</h6>
+        <h4 class="text-danger mb-0">${{ total_expense|money_es }}</h4>
+      </div>
+    </div>
+    <div class="col-xl-2 col-md-4 col-sm-6">
+      <div class="kpi p-3 text-center">
+        <h6 class="text-muted mb-2" style="font-size:0.8rem;">{% trans "Net" %}</h6>
+        <h4 class="text-primary mb-0">${{ net|money_es }}</h4>
+      </div>
+    </div>
+    <div class="col-xl-3 col-md-6 col-sm-6">
+      <div class="kpi p-3 text-center">
+        <h6 class="text-muted mb-2" style="font-size:0.8rem;">{% trans "Transactions" %}</h6>
+        <h4 class="text-dark mb-0">{{ tx_count|int_es }}</h4>
+      </div>
+    </div>
+    <div class="col-xl-3 col-md-6 col-sm-12">
+      <div class="kpi p-3 text-center">
+        <h6 class="text-muted mb-2" style="font-size:0.8rem;">{% trans "Monthly avg (net)" %}</h6>
+        <h4 class="text-dark mb-0">${{ avg_monthly_net|money_es }}</h4>
       </div>
     </div>
   </div>
 
   <div class="row g-4">
-    <div class="col-lg-6">
+    <div class="col-lg-8">
       <div class="chart-card">
-        <h6 class="text-muted">{% trans "Time series" %}</h6>
-        <canvas id="timeSeries"></canvas>
+        <h6 class="text-muted mb-3">{% trans "Time series" %}</h6>
+        <div style="height: 300px;">
+          <canvas id="timeSeries"></canvas>
+        </div>
       </div>
     </div>
-    <div class="col-lg-6">
+    <div class="col-lg-4">
       <div class="chart-card">
-        <h6 class="text-muted">{% trans "By movement type" %}</h6>
-        <canvas id="movementChart"></canvas>
+        <h6 class="text-muted mb-3">{% trans "By movement type" %}</h6>
+        <div style="height: 300px; display: flex; justify-content: center;">
+          <canvas id="movementChart"></canvas>
+        </div>
       </div>
     </div>
+    
+    <div class="col-lg-4">
+      <div class="chart-card">
+        <h6 class="text-muted mb-3">{% trans "Amount by bank" %}</h6>
+        <div style="height: 250px;">
+          <canvas id="bankChart"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-8">
+      <div class="chart-card">
+        <h6 class="text-muted mb-3">{% trans "Top 10 merchants by spend" %}</h6>
+        <div style="height: 250px;">
+          <canvas id="merchantChart"></canvas>
+        </div>
+      </div>
+    </div>
+    
     <div class="col-lg-12">
       <div class="chart-card">
-        <h6 class="text-muted">{% trans "Top 10 merchants by spend" %}</h6>
-        <canvas id="merchantChart"></canvas>
-      </div>
-    </div>
-    <div class="col-lg-6">
-      <div class="chart-card">
-        <h6 class="text-muted">{% trans "Amount by bank" %}</h6>
-        <canvas id="bankChart"></canvas>
-      </div>
-    </div>
-    <div class="col-lg-12">
-      <div class="chart-card">
-        <h6 class="text-muted">{% trans "Average daily net per month" %}</h6>
-        <canvas id="monthlyAvgChart"></canvas>
+        <h6 class="text-muted mb-3">{% trans "Average daily net per month" %}</h6>
+        <div style="height: 250px;">
+          <canvas id="monthlyAvgChart"></canvas>
+        </div>
       </div>
     </div>
   </div>
@@ -162,6 +175,8 @@
         }],
       },
       options: {
+        responsive: true,
+        maintainAspectRatio: false,
         plugins: {
           tooltip: {
             callbacks: {
@@ -185,10 +200,12 @@
         labels: chartData.movement.labels,
         datasets: [{
           data: chartData.movement.values,
-          backgroundColor: ["#457b9d", "#e63946", "#f4a261", "#2a9d8f", "#1d3557"],
+          backgroundColor: ["#457b9d", "#e63946", "#f4a261", "#2a9d8f", "#1d3557", "#9c27b0"],
         }],
       },
       options: {
+        responsive: true,
+        maintainAspectRatio: false,
         plugins: {
           tooltip: {
             callbacks: {
@@ -210,6 +227,8 @@
         }],
       },
       options: {
+        responsive: true,
+        maintainAspectRatio: false,
         indexAxis: "y",
         plugins: {
           tooltip: {
@@ -239,6 +258,8 @@
         }],
       },
       options: {
+        responsive: true,
+        maintainAspectRatio: false,
         plugins: {
           tooltip: {
             callbacks: {
@@ -267,6 +288,8 @@
         }],
       },
       options: {
+        responsive: true,
+        maintainAspectRatio: false,
         plugins: {
           tooltip: {
             callbacks: {

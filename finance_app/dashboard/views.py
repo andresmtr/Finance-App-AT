@@ -84,6 +84,7 @@ def dashboard(request: HttpRequest) -> HttpResponse:
         frame_all["id"] = frame_all["external_id"]
         frame_all = frame_all.drop(columns=["external_id"])
         frame_all = frame_all.dropna(subset=["amount"])
+        frame_all["amount"] = frame_all["amount"].astype(float)
 
     bank = request.GET.get("bank", "")
     account_last4 = request.GET.get("account_last4", "")
@@ -101,18 +102,14 @@ def dashboard(request: HttpRequest) -> HttpResponse:
         frame["date_dt"] = pd.to_datetime(frame["date"], errors="coerce")
         frame = frame.dropna(subset=["date_dt"])
 
-    movement = frame["movement_type"].fillna("").str.lower() if not frame.empty else pd.Series()
-    income_mask = movement.str.contains("abono|intereses", na=False)
-    expense_mask = movement.str.contains("compra|retiro|pago|impuesto", na=False)
     if not frame.empty:
-        transfer_mask = movement.str.contains("transferencia", na=False)
-        transfer_account_mask = frame["account_last4"] == "9974"
-        expense_mask = expense_mask | (transfer_mask & transfer_account_mask)
+        income_mask = frame["amount"] > 0
+        expense_mask = frame["amount"] < 0
         frame["income_flag"] = income_mask
         frame["expense_flag"] = expense_mask
 
-    income = frame[income_mask] if not frame.empty else frame
-    expense = frame[expense_mask] if not frame.empty else frame
+    income = frame[frame["income_flag"]] if not frame.empty else frame
+    expense = frame[frame["expense_flag"]] if not frame.empty else frame
 
     total_income = _safe_sum(income["amount"]) if not income.empty else 0.0
     total_expense = _safe_sum(expense["amount"].abs()) if not expense.empty else 0.0
@@ -197,7 +194,7 @@ def dashboard(request: HttpRequest) -> HttpResponse:
         "net": net,
         "tx_count": tx_count,
         "avg_monthly_net": avg_monthly_net,
-        "chart_data_json": json.dumps(chart_data),
+        "chart_data_json": chart_data,
         "filters": request.GET,
         "granularity": granularity,
         "banks": sorted(frame_all["bank"].dropna().unique().tolist()) if not frame_all.empty else [],

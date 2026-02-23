@@ -2,16 +2,19 @@
 {% load i18n %}
 {% load formatting %}
 
+{% block container_class %}container-fluid{% endblock %}
+{% block container_style %}style="width: 90%; max-width: 1800px; margin: 0 auto;"{% endblock %}
+
 {% block content %}
   <div class="hero">
     <h1 class="display-6">{% trans "Transaction Review" %}</h1>
-    <p class="mb-0">{% trans "Pending in this batch:" %} {{ pending_count }}</p>
+    <p class="mb-0">{% trans "Pending in this batch:" %} <span class="badge bg-light text-dark ms-2">{{ pending_count }}</span></p>
   </div>
 
   {% if status_log %}
-    <div class="alert alert-info">
-      <strong>{% trans "Last action results" %}</strong>
-      <ul class="mb-0">
+    <div class="alert alert-info shadow-sm rounded-3">
+      <strong><i class="fa-solid fa-circle-info me-2"></i> {% trans "Last action results" %}</strong>
+      <ul class="mb-0 mt-2">
         {% for item in status_log %}
           <li>ID {{ item.id }} - {{ item.status }}</li>
         {% endfor %}
@@ -21,96 +24,116 @@
 
   <form method="post">
     {% csrf_token %}
-    <div class="table-responsive">
-      <table class="table table-striped align-middle">
-        <thead>
-          <tr>
-            <th></th>
-            <th>{% trans "Bank" %}</th>
-            <th>{% trans "Account" %}</th>
-            <th>{% trans "Date" %}</th>
-            <th>{% trans "Time" %}</th>
-            <th>{% trans "Amount" %}</th>
-            <th>{% trans "Currency" %}</th>
-            <th>{% trans "Movement Type" %}</th>
-            <th>{% trans "Reference" %}</th>
-            <th>{% trans "Merchant" %}</th>
-            <th>{% trans "Location" %}</th>
-            <th>{% trans "Channel" %}</th>
-            <th>{% trans "Description" %}</th>
-            <th>{% trans "Status" %}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in staged_rows %}
-            <tr>
-              <td>
-                <input type="checkbox" name="row_id" value="{{ row.id }}">
-              </td>
-              <td>
-                <input class="form-control form-control-sm" name="bank_{{ row.id }}" value="{{ row.bank }}">
-              </td>
-              <td>
-                <input class="form-control form-control-sm" name="account_last4_{{ row.id }}" value="{{ row.account_last4 }}">
-              </td>
-              <td>
-                <input class="form-control form-control-sm" type="date" name="date_{{ row.id }}" value="{{ row.date|date:'Y-m-d' }}">
-              </td>
-              <td>
-                <input class="form-control form-control-sm" type="time" name="time_{{ row.id }}" value="{{ row.time|time:'H:i' }}">
-              </td>
-              <td>
-                <input class="form-control form-control-sm" name="amount_{{ row.id }}" value="{{ row.amount }}">
-              </td>
-              <td>
-                <input class="form-control form-control-sm" name="currency_{{ row.id }}" value="{{ row.currency }}">
-              </td>
-              <td>
-                <select class="form-select form-select-sm" name="movement_type_{{ row.id }}">
-                  <option value="">{% trans "-- Select --" %}</option>
-                  {% for mt in movement_types %}
-                    <option value="{{ mt.name }}" {% if row.movement_type and row.movement_type.name == mt.name %}selected{% endif %}>
-                      {{ mt.name }}
-                    </option>
-                  {% endfor %}
-                </select>
-              </td>
-              <td>
-                <input class="form-control form-control-sm" name="reference_{{ row.id }}" value="{{ row.reference }}">
-              </td>
-              <td>
-                <input class="form-control form-control-sm" name="merchant_{{ row.id }}" value="{{ row.merchant }}">
-              </td>
-              <td>
-                <input class="form-control form-control-sm" name="location_{{ row.id }}" value="{{ row.location }}">
-              </td>
-              <td>
-                <input class="form-control form-control-sm" name="channel_{{ row.id }}" value="{{ row.channel }}">
-              </td>
-              <td>
-                <textarea class="form-control form-control-sm" name="description_{{ row.id }}" rows="2">{{ row.description }}</textarea>
-              </td>
-              <td>{{ status_map|get_item:row.id|default:_("Pending") }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+    <div class="card mb-4">
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0" style="font-size: 0.9rem;">
+            <thead class="bg-light">
+              <tr>
+                <th class="ps-3"><input type="checkbox" id="selectAll" class="form-check-input"></th>
+                <th>{% trans "Bank" %}</th>
+                <th>{% trans "Account" %}</th>
+                <th style="min-width: 130px;">{% trans "Date" %}</th>
+                <th style="min-width: 90px;">{% trans "Time" %}</th>
+                <th style="min-width: 120px;">{% trans "Amount" %}</th>
+                <th style="min-width: 80px;">{% trans "Currency" %}</th>
+                <th style="min-width: 160px;">{% trans "Movement Type" %}</th>
+                <th style="min-width: 120px;">{% trans "Código" %}</th>
+                <th style="min-width: 150px;">{% trans "Merchant" %}</th>
+                <th style="min-width: 120px;">{% trans "Location" %}</th>
+                <th style="min-width: 120px;">{% trans "Channel" %}</th>
+                <th style="min-width: 200px;">{% trans "Description" %}</th>
+                <th class="pe-3">{% trans "Status" %}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in staged_rows %}
+                <tr>
+                  <td class="ps-3">
+                    <input type="checkbox" name="row_id" value="{{ row.id }}" class="form-check-input row-checkbox">
+                  </td>
+                  <td>
+                    <input class="form-control form-control-sm" name="bank_{{ row.id }}" value="{{ row.bank }}" style="min-width: 110px;">
+                  </td>
+                  <td>
+                    <input class="form-control form-control-sm" name="account_last4_{{ row.id }}" value="{{ row.account_last4 }}" style="min-width: 80px;">
+                  </td>
+                  <td>
+                    <input class="form-control form-control-sm" type="date" name="date_{{ row.id }}" value="{{ row.date|date:'Y-m-d' }}">
+                  </td>
+                  <td>
+                    <input class="form-control form-control-sm" type="time" name="time_{{ row.id }}" value="{{ row.time|time:'H:i' }}">
+                  </td>
+                  <td>
+                    <input class="form-control form-control-sm fw-bold {% if row.amount > 0 %}text-success{% else %}text-danger{% endif %}" name="amount_{{ row.id }}" value="{{ row.amount }}">
+                  </td>
+                  <td>
+                    <input class="form-control form-control-sm text-center" name="currency_{{ row.id }}" value="{{ row.currency }}">
+                  </td>
+                  <td>
+                    <select class="form-select form-select-sm" name="movement_type_{{ row.id }}">
+                      <option value="">{% trans "-- Select --" %}</option>
+                      {% for mt in movement_types %}
+                        <option value="{{ mt.name }}" {% if row.movement_type and row.movement_type.name == mt.name %}selected{% endif %}>
+                          {{ mt.name }}
+                        </option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                  <td>
+                    <input class="form-control form-control-sm font-monospace text-muted" name="reference_{{ row.id }}" value="{{ row.reference }}">
+                  </td>
+                  <td>
+                    <input class="form-control form-control-sm fw-medium" name="merchant_{{ row.id }}" value="{{ row.merchant }}">
+                  </td>
+                  <td>
+                    <input class="form-control form-control-sm" name="location_{{ row.id }}" value="{{ row.location }}">
+                  </td>
+                  <td>
+                    <input class="form-control form-control-sm" name="channel_{{ row.id }}" value="{{ row.channel }}">
+                  </td>
+                  <td>
+                    <textarea class="form-control form-control-sm text-muted" name="description_{{ row.id }}" rows="1" style="resize: vertical;">{{ row.description }}</textarea>
+                  </td>
+                  <td class="pe-3">
+                    <span class="badge bg-secondary">{{ status_map|get_item:row.id|default:_("Pending") }}</span>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
 
-    <div class="d-flex gap-2">
-      <button class="btn btn-primary" type="submit" name="action" value="save_all">
-        {% trans "Save all changes" %}
+    <div class="d-flex gap-2 mb-5">
+      <button class="btn btn-primary shadow-sm" type="submit" name="action" value="save_all">
+        <i class="fa-solid fa-floppy-disk me-1"></i> {% trans "Save all changes" %}
       </button>
-      <button class="btn btn-success" type="submit" name="action" value="approve_selected">
-        {% trans "Approve selected" %}
+      <button class="btn btn-success shadow-sm" type="submit" name="action" value="approve_selected">
+        <i class="fa-solid fa-check-double me-1"></i> {% trans "Approve selected" %}
       </button>
       <button class="btn btn-outline-secondary" type="submit" name="action" value="skip_selected">
-        {% trans "Skip selected" %}
+        <i class="fa-solid fa-forward-step me-1"></i> {% trans "Skip selected" %}
       </button>
-      <button class="btn btn-outline-danger" type="submit" name="action" value="delete_selected">
-        {% trans "Delete selected" %}
+      <button class="btn btn-outline-danger" type="submit" name="action" value="delete_selected" onclick="return confirm('¿Seguro que deseas eliminar los seleccionados?');">
+        <i class="fa-solid fa-trash-can me-1"></i> {% trans "Delete selected" %}
       </button>
-      <a class="btn btn-outline-primary" href="/transactions/manual/">{% trans "Manual Entry" %}</a>
+      <a class="btn btn-outline-primary ms-auto" href="/transactions/manual/">
+        <i class="fa-solid fa-plus me-1"></i> {% trans "Manual Entry" %}
+      </a>
     </div>
   </form>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      const selectAll = document.getElementById("selectAll");
+      const checkboxes = document.querySelectorAll(".row-checkbox");
+      if (selectAll) {
+        selectAll.addEventListener("change", function() {
+          checkboxes.forEach(cb => cb.checked = selectAll.checked);
+        });
+      }
+    });
+  </script>
 {% endblock %}

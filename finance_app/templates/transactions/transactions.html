@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load i18n %}
+{% load formatting %}
 
 {% block content %}
   <div class="hero">
@@ -7,100 +8,124 @@
     <p class="mb-0">{% trans "Filter and export your data." %}</p>
   </div>
 
-  <form method="get" class="row g-3 mb-4">
-    <div class="col-md-3">
-      <label class="form-label">{% trans "Start date" %}</label>
-      <input type="date" name="start_date" class="form-control" value="{{ filters.start_date }}">
+  <div class="card mb-4">
+    <div class="card-body">
+      <form method="get" class="row g-3">
+        <div class="col-md-3">
+          <label class="form-label text-muted small fw-bold">{% trans "Start date" %}</label>
+          <input type="date" name="start_date" class="form-control form-control-sm" value="{{ filters.start_date }}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label text-muted small fw-bold">{% trans "End date" %}</label>
+          <input type="date" name="end_date" class="form-control form-control-sm" value="{{ filters.end_date }}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label text-muted small fw-bold">{% trans "Bank" %}</label>
+          <select name="bank" class="form-select form-select-sm">
+            <option value="">{% trans "All" %}</option>
+            {% for bank in banks %}
+              <option value="{{ bank }}" {% if filters.bank == bank %}selected{% endif %}>{{ bank }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label text-muted small fw-bold">{% trans "Account" %}</label>
+          <select name="account_last4" class="form-select form-select-sm">
+            <option value="">{% trans "All" %}</option>
+            {% for account in accounts %}
+              <option value="{{ account }}" {% if filters.account_last4 == account %}selected{% endif %}>{{ account }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label text-muted small fw-bold">{% trans "Movement type" %}</label>
+          <select name="movement_type" class="form-select form-select-sm">
+            <option value="">{% trans "All" %}</option>
+            {% for movement in movement_types %}
+              <option value="{{ movement }}" {% if filters.movement_type == movement %}selected{% endif %}>{{ movement }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label text-muted small fw-bold">{% trans "Merchant" %}</label>
+          <input type="text" name="merchant" class="form-control form-control-sm" value="{{ filters.merchant }}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label text-muted small fw-bold">{% trans "Min amount" %}</label>
+          <input type="number" step="0.01" name="amount_min" class="form-control form-control-sm" value="{{ filters.amount_min }}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label text-muted small fw-bold">{% trans "Max amount" %}</label>
+          <input type="number" step="0.01" name="amount_max" class="form-control form-control-sm" value="{{ filters.amount_max }}">
+        </div>
+        <div class="col-12 mt-4 d-flex gap-2">
+          <button type="submit" class="btn btn-sm btn-primary"><i class="fa-solid fa-filter me-1"></i> {% trans "Apply filters" %}</button>
+          <a class="btn btn-sm btn-outline-secondary" href="/transactions/"><i class="fa-solid fa-xmark me-1"></i> {% trans "Clear" %}</a>
+          <a class="btn btn-sm btn-outline-success ms-auto" href="?{{ filters.urlencode }}&export=1"><i class="fa-solid fa-file-excel me-1"></i> {% trans "Export Excel" %}</a>
+        </div>
+      </form>
     </div>
-    <div class="col-md-3">
-      <label class="form-label">{% trans "End date" %}</label>
-      <input type="date" name="end_date" class="form-control" value="{{ filters.end_date }}">
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">{% trans "Bank" %}</label>
-      <select name="bank" class="form-select">
-        <option value="">Todos</option>
-        {% for bank in banks %}
-          <option value="{{ bank }}" {% if filters.bank == bank %}selected{% endif %}>{{ bank }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">{% trans "Account" %}</label>
-      <select name="account_last4" class="form-select">
-        <option value="">Todas</option>
-        {% for account in accounts %}
-          <option value="{{ account }}" {% if filters.account_last4 == account %}selected{% endif %}>{{ account }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">{% trans "Movement type" %}</label>
-      <select name="movement_type" class="form-select">
-        <option value="">Todos</option>
-        {% for movement in movement_types %}
-          <option value="{{ movement }}" {% if filters.movement_type == movement %}selected{% endif %}>{{ movement }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">{% trans "Merchant" %}</label>
-      <input type="text" name="merchant" class="form-control" value="{{ filters.merchant }}">
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">{% trans "Minimum amount" %}</label>
-      <input type="number" step="0.01" name="amount_min" class="form-control" value="{{ filters.amount_min }}">
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">{% trans "Maximum amount" %}</label>
-      <input type="number" step="0.01" name="amount_max" class="form-control" value="{{ filters.amount_max }}">
-    </div>
-    <div class="col-12 d-flex gap-2">
-      <button type="submit" class="btn btn-primary">{% trans "Apply filters" %}</button>
-      <a class="btn btn-outline-secondary" href="/transactions/">{% trans "Clear" %}</a>
-      <a class="btn btn-outline-success" href="?{{ filters.urlencode }}&export=1">{% trans "Export CSV" %}</a>
-      <a class="btn btn-outline-primary" href="/transactions/manual/">{% trans "Manual Entry" %}</a>
-    </div>
-  </form>
-
-  <div class="table-responsive">
-    <table class="table table-striped align-middle">
-      <thead>
-        <tr>
-          <th>{% trans "Date" %}</th>
-          <th>{% trans "Time" %}</th>
-          <th>{% trans "Bank" %}</th>
-          <th>{% trans "Account" %}</th>
-          <th>{% trans "Merchant" %}</th>
-          <th>{% trans "Reference" %}</th>
-          <th>{% trans "Type" %}</th>
-          <th>{% trans "Amount" %}</th>
-          <th>{% trans "Currency" %}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for tx in page_obj.object_list %}
-          <tr>
-            <td>{{ tx.date }}</td>
-            <td>{{ tx.time }}</td>
-            <td>{{ tx.bank }}</td>
-            <td>{{ tx.account_last4 }}</td>
-            <td>{{ tx.merchant }}</td>
-            <td>{{ tx.reference }}</td>
-            <td>{{ tx.movement_type }}</td>
-            <td>{{ tx.amount }}</td>
-            <td>{{ tx.currency }}</td>
-          </tr>
-        {% empty %}
-          <tr>
-            <td colspan="9" class="text-center">{% trans "No data available." %}</td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
   </div>
 
-  <nav>
+  <div class="card">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th>{% trans "Date" %}</th>
+              <th>{% trans "Time" %}</th>
+              <th>{% trans "Bank" %}</th>
+              <th>{% trans "Account" %}</th>
+              <th>{% trans "Merchant" %}</th>
+              <th>{% trans "Código" %}</th>
+              <th>{% trans "Type" %}</th>
+              <th class="text-end">{% trans "Amount" %}</th>
+              <th>{% trans "Currency" %}</th>
+              <th class="text-center">{% trans "Actions" %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for tx in page_obj.object_list %}
+              <tr>
+                <td class="text-nowrap">{{ tx.date }}</td>
+                <td class="text-nowrap text-muted small">{{ tx.time }}</td>
+                <td>{{ tx.bank }}</td>
+                <td><span class="badge bg-light text-dark border">{{ tx.account_last4 }}</span></td>
+                <td class="fw-medium text-truncate" style="max-width: 200px;" title="{{ tx.merchant }}">{{ tx.merchant|default:"-" }}</td>
+                <td class="font-monospace small text-muted">{{ tx.reference|default:"-" }}</td>
+                <td><span class="badge {% if tx.amount > 0 %}badge-income{% else %}badge-expense{% endif %}">{{ tx.movement_type }}</span></td>
+                <td class="text-end fw-bold {% if tx.amount > 0 %}text-success{% else %}text-danger{% endif %}">${{ tx.amount|money_es }}</td>
+                <td class="small text-muted">{{ tx.currency }}</td>
+                <td class="text-center">
+                  <div class="d-flex justify-content-center gap-1">
+                    <a href="{% url 'edit_transaction' tx.pk %}" class="btn btn-sm btn-outline-primary" title="{% trans 'Edit' %}">
+                      <i class="fa-solid fa-pen-to-square"></i>
+                    </a>
+                    <form action="{% url 'delete_transaction' tx.pk %}" method="post" onsubmit="return confirm('{% trans 'Are you sure you want to delete this transaction?' %}');" style="display:inline;">
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-sm btn-outline-danger" title="{% trans 'Delete' %}">
+                        <i class="fa-solid fa-trash"></i>
+                      </button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="10" class="text-center py-5 text-muted">
+                  <i class="fa-solid fa-inbox fa-3x mb-3 text-light"></i><br>
+                  {% trans "No data available." %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <nav class="mt-4 d-flex justify-content-center">
     <ul class="pagination">
       {% if page_obj.has_previous %}
         <li class="page-item">
