@@ -200,6 +200,7 @@ def import_pdfs(request: HttpRequest) -> HttpResponse:
     if request.method == "POST":
         files = request.FILES.getlist("pdfs")
         passwords = request.POST.get("passwords", "")
+        extraction_method = request.POST.get("extraction_method", "auto")
         password_list = [pw.strip() for pw in passwords.split(",") if pw.strip()]
         if not files:
             return render(
@@ -219,7 +220,7 @@ def import_pdfs(request: HttpRequest) -> HttpResponse:
                     handle.write(chunk)
             saved_paths.append(dest)
 
-        batch = stage_pdf_files(request.user, saved_paths, passwords=password_list)
+        batch = stage_pdf_files(request.user, saved_paths, passwords=password_list, extraction_method=extraction_method)
         for path in saved_paths:
             try:
                 path.unlink()

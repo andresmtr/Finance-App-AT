@@ -66,13 +66,13 @@ def _movement_type_map() -> dict[str, MovementType]:
     return {mt.name: mt for mt in MovementType.objects.filter(is_active=True)}
 
 
-def stage_pdf_files(user, pdf_paths: Iterable[Path], passwords: List[str] | None = None) -> ImportBatch:
+def stage_pdf_files(user, pdf_paths: Iterable[Path], passwords: List[str] | None = None, extraction_method: str = "auto") -> ImportBatch:
     batch = ImportBatch.objects.create(user=user, source_label="PDF")
     type_map = _movement_type_map()
     staged_rows = []
 
     for pdf_path in pdf_paths:
-        txs, dbg_list = parse_pdf_file(str(pdf_path), passwords=passwords or [])
+        txs, dbg_list = parse_pdf_file(str(pdf_path), passwords=passwords or [], extraction_method=extraction_method)
         for row in txs:
             movement_name = row.get("movement_type") or ""
             amount = _to_decimal(row.get("amount"))
@@ -80,6 +80,12 @@ def stage_pdf_files(user, pdf_paths: Iterable[Path], passwords: List[str] | None
                 continue
 
             external_id = row.get("external_id") or row.get("id") or ""
+            
+            # Lazily create missing movement types
+            m_type = type_map.get(movement_name)
+            if not m_type and movement_name:
+                m_type, _ = MovementType.objects.get_or_create(name=movement_name, defaults={"is_active": True})
+                type_map[movement_name] = m_type
 
             staged_rows.append(
                 StagedTransaction(

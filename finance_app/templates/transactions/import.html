@@ -23,6 +23,15 @@
       <input class="form-control" type="text" name="passwords" placeholder="1234, 5678">
       <div class="form-text">{% trans "Comma-separated if there is more than one." %}</div>
     </div>
+    <div class="mb-4">
+      <label class="form-label fw-bold">{% trans "Extraction Method" %}</label>
+      <select class="form-select" name="extraction_method">
+        <option value="auto">{% trans "Auto (Local Model with Gemini AI Fallback)" %}</option>
+        <option value="gemini">{% trans "Gemini AI Only (Requires API Key)" %}</option>
+        <option value="local">{% trans "Local Model Only" %}</option>
+      </select>
+      <div class="form-text">{% trans "Choose which AI model to use to extract data from the PDFs." %}</div>
+    </div>
     <button class="btn btn-primary" type="submit">{% trans "Process and review" %}</button>
     <a class="btn btn-outline-secondary ms-2" href="/transactions/manual/">{% trans "Manual Entry" %}</a>
   </form>

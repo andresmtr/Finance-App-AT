@@ -13,6 +13,15 @@
   <div class="card mb-4 p-4">
     <form method="get" class="row g-3">
       <div class="col-md-2">
+        <label class="form-label small fw-bold text-muted">{% trans "Year" %}</label>
+        <select name="year" class="form-select form-select-sm">
+          <option value="">{% trans "All Time" %}</option>
+          {% for y in available_years %}
+            <option value="{{ y }}" {% if selected_year == y|stringformat:"s" %}selected{% endif %}>{{ y }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
         <label class="form-label small fw-bold text-muted">{% trans "Bank" %}</label>
         <select name="bank" class="form-select form-select-sm">
           <option value="">{% trans "All" %}</option>
@@ -30,7 +39,7 @@
           {% endfor %}
         </select>
       </div>
-      <div class="col-md-3">
+      <div class="col-md-2">
         <label class="form-label small fw-bold text-muted">{% trans "Type" %}</label>
         <select name="movement_type" class="form-select form-select-sm">
           <option value="">{% trans "All" %}</option>
@@ -47,7 +56,7 @@
           <option value="monthly" {% if granularity == "monthly" %}selected{% endif %}>{% trans "Monthly" %}</option>
         </select>
       </div>
-      <div class="col-md-3">
+      <div class="col-md-2">
         <label class="form-label small fw-bold text-muted">{% trans "Reference" %}</label>
         <input type="text" name="reference" class="form-control form-control-sm" value="{{ filters.reference }}">
       </div>
@@ -92,11 +101,30 @@
   </div>
 
   <div class="row g-4">
-    <div class="col-lg-8">
+    <!-- Row 1: Time Series & Cumulative -->
+    <div class="col-lg-6">
       <div class="chart-card">
         <h6 class="text-muted mb-3">{% trans "Time series" %}</h6>
         <div style="height: 300px;">
           <canvas id="timeSeries"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="chart-card">
+        <h6 class="text-muted mb-3">{% trans "Cumulative Cash Flow" %}</h6>
+        <div style="height: 300px;">
+          <canvas id="cumulativeChart"></canvas>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Row 2: Monthly Income vs Expense & Movement Types -->
+    <div class="col-lg-8">
+      <div class="chart-card">
+        <h6 class="text-muted mb-3">{% trans "Monthly Income vs Expenses" %}</h6>
+        <div style="height: 300px;">
+          <canvas id="monthlyIncExpChart"></canvas>
         </div>
       </div>
     </div>
@@ -109,6 +137,7 @@
       </div>
     </div>
     
+    <!-- Row 3: Banks, Top Income, Top Expense -->
     <div class="col-lg-4">
       <div class="chart-card">
         <h6 class="text-muted mb-3">{% trans "Amount by bank" %}</h6>
@@ -117,7 +146,15 @@
         </div>
       </div>
     </div>
-    <div class="col-lg-8">
+    <div class="col-lg-4">
+      <div class="chart-card">
+        <h6 class="text-muted mb-3">{% trans "Top 5 Income Sources" %}</h6>
+        <div style="height: 250px;">
+          <canvas id="topIncomeChart"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
       <div class="chart-card">
         <h6 class="text-muted mb-3">{% trans "Top 10 merchants by spend" %}</h6>
         <div style="height: 250px;">
@@ -125,16 +162,36 @@
         </div>
       </div>
     </div>
-    
-    <div class="col-lg-12">
-      <div class="chart-card">
-        <h6 class="text-muted mb-3">{% trans "Average daily net per month" %}</h6>
-        <div style="height: 250px;">
-          <canvas id="monthlyAvgChart"></canvas>
+  </div>
+
+  {% if user.is_superuser %}
+  <div class="row g-4 mt-2 mb-5">
+    <div class="col-12">
+      <div class="card p-4 border-warning shadow-sm">
+        <h5 class="mb-3 text-warning"><i class="fa-solid fa-database me-2"></i>{% trans "Database Maintenance (Admin Only)" %}</h5>
+        <div class="d-flex flex-wrap gap-3 align-items-end">
+          <div>
+            <p class="text-muted small mb-2">{% trans "Download a full copy of your current database." %}</p>
+            <a href="{% url 'download_backup' %}" class="btn btn-outline-primary">
+              <i class="fa-solid fa-download me-2"></i>{% trans "Download SQLite Backup" %}
+            </a>
+          </div>
+          
+          <div class="border-start ps-3">
+            <p class="text-muted small mb-2">{% trans "Restore from a .sqlite3 backup file. Warning: This overwrites all current data!" %}</p>
+            <form action="{% url 'restore_backup' %}" method="post" enctype="multipart/form-data" class="d-flex gap-2" onsubmit="return confirm('{% trans 'Are you absolutely sure? This will replace the entire database.' %}');">
+              {% csrf_token %}
+              <input type="file" name="backup_file" class="form-control form-control-sm" accept=".sqlite3" required style="max-width: 250px;">
+              <button type="submit" class="btn btn-danger">
+                <i class="fa-solid fa-upload me-2"></i>{% trans "Restore Backup" %}
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     </div>
   </div>
+  {% endif %}
 
   {{ chart_data_json|json_script:"chart-data" }}
 {% endblock %}
@@ -247,14 +304,49 @@
       },
     });
 
-    new Chart(document.getElementById("bankChart"), {
+    new Chart(document.getElementById("topIncomeChart"), {
       type: "bar",
       data: {
-        labels: chartData.banks.labels,
+        labels: chartData.top_income.labels,
         datasets: [{
-          label: "{% trans 'Amount' %}",
-          data: chartData.banks.values,
-          backgroundColor: "rgba(42, 157, 143, 0.6)",
+          label: "{% trans 'Income' %}",
+          data: chartData.top_income.values,
+          backgroundColor: "rgba(42, 157, 143, 0.7)",
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: "y",
+        plugins: {
+          tooltip: {
+            callbacks: {
+              label: (context) => `${context.dataset.label}: ${formatNumber.format(context.parsed.x)}`,
+            },
+          },
+        },
+        scales: {
+          x: {
+            ticks: {
+              callback: (value) => formatNumber.format(value),
+            },
+          },
+        },
+      },
+    });
+
+    new Chart(document.getElementById("monthlyIncExpChart"), {
+      type: "bar",
+      data: {
+        labels: chartData.monthly_inc_exp.labels,
+        datasets: [{
+          label: "{% trans 'Income' %}",
+          data: chartData.monthly_inc_exp.income,
+          backgroundColor: "rgba(42, 157, 143, 0.8)",
+        }, {
+          label: "{% trans 'Expenses' %}",
+          data: chartData.monthly_inc_exp.expense,
+          backgroundColor: "rgba(230, 57, 70, 0.8)",
         }],
       },
       options: {
@@ -277,14 +369,49 @@
       },
     });
 
-    new Chart(document.getElementById("monthlyAvgChart"), {
+    new Chart(document.getElementById("cumulativeChart"), {
+      type: "line",
+      data: {
+        labels: chartData.cumulative.labels,
+        datasets: [{
+          label: "{% trans 'Cumulative Net' %}",
+          data: chartData.cumulative.values,
+          borderColor: "#3f37c9",
+          backgroundColor: "rgba(63, 55, 201, 0.1)",
+          fill: true,
+          tension: 0.1,
+          pointRadius: 0,
+          borderWidth: 2,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          tooltip: {
+            callbacks: {
+              label: (context) => `${context.dataset.label}: ${formatNumber.format(context.parsed.y)}`,
+            },
+          },
+        },
+        scales: {
+          y: {
+            ticks: {
+              callback: (value) => formatNumber.format(value),
+            },
+          },
+        },
+      },
+    });
+
+    new Chart(document.getElementById("bankChart"), {
       type: "bar",
       data: {
-        labels: chartData.monthly_avg.labels,
+        labels: chartData.banks.labels,
         datasets: [{
-          label: "{% trans 'Average daily net' %}",
-          data: chartData.monthly_avg.values,
-          backgroundColor: "rgba(69, 123, 157, 0.6)",
+          label: "{% trans 'Amount' %}",
+          data: chartData.banks.values,
+          backgroundColor: "rgba(252, 191, 73, 0.8)",
         }],
       },
       options: {

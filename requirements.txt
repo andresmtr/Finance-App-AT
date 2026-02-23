@@ -10,3 +10,4 @@ pytesseract==0.3.10
 torch==2.3.1
 transformers==4.41.2
 openpyxl==3.1.5
+google-generativeai>=0.4.0

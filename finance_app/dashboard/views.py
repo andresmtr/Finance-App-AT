@@ -90,17 +90,23 @@ def dashboard(request: HttpRequest) -> HttpResponse:
     account_last4 = request.GET.get("account_last4", "")
     movement_type = request.GET.get("movement_type", "")
     reference = request.GET.get("reference", "")
+    year_filter = request.GET.get("year", "")
     granularity = request.GET.get("granularity", "daily")
     granularity_map = {"daily": "D", "weekly": "W", "monthly": "M"}
     freq = granularity_map.get(granularity, "D")
 
+    # Extract available years for the dropdown before filtering
+    available_years = []
+    if not frame_all.empty:
+        frame_all["date_dt"] = pd.to_datetime(frame_all["date"], errors="coerce")
+        frame_all = frame_all.dropna(subset=["date_dt"])
+        available_years = sorted(frame_all["date_dt"].dt.year.unique().astype(int).tolist(), reverse=True)
+
+    if year_filter and year_filter.isdigit():
+        frame_all = frame_all[frame_all["date_dt"].dt.year == int(year_filter)]
+
     frame = _apply_filters(frame_all, account_last4, movement_type, bank, reference)
     frame = frame.copy()
-
-    if not frame.empty:
-        frame = frame.dropna(subset=["date"])
-        frame["date_dt"] = pd.to_datetime(frame["date"], errors="coerce")
-        frame = frame.dropna(subset=["date_dt"])
 
     if not frame.empty:
         income_mask = frame["amount"] > 0
@@ -127,7 +133,21 @@ def dashboard(request: HttpRequest) -> HttpResponse:
         else pd.Series()
     )
     merchant_labels = merchant_spend.index.fillna("N/A").tolist()
+    # Replace empty merchant names with "Sin Nombre/Varios"
+    merchant_labels = [m if m else "Desconocido" for m in merchant_labels]
     merchant_values = merchant_spend.fillna(0).astype(float).tolist()
+    
+    # New: Top Income Sources
+    top_income = (
+        income.groupby("merchant")["amount"]
+        .sum()
+        .sort_values(ascending=False)
+        .head(5)
+        if not income.empty
+        else pd.Series()
+    )
+    top_income_labels = [m if m else "Desconocido" for m in top_income.index.fillna("N/A").tolist()]
+    top_income_values = top_income.fillna(0).astype(float).tolist()
 
     movement_group = (
         frame.groupby("movement_type")["amount"].sum().sort_values(ascending=False)
@@ -153,22 +173,40 @@ def dashboard(request: HttpRequest) -> HttpResponse:
         income_series = income_series.reindex(net_series.index, fill_value=0)
         expense_series = expense_series.reindex(net_series.index, fill_value=0)
         ts_labels = _format_period_labels(net_series.index, granularity)
+        
+        # New: Monthly aggregated income vs expense
+        monthly_inc = indexed[indexed["income_flag"]]["amount"].resample("M").sum()
+        monthly_exp = indexed[indexed["expense_flag"]]["amount"].resample("M").sum().abs()
+        monthly_labels_list = net_series.resample("M").sum().index
+        monthly_inc = monthly_inc.reindex(monthly_labels_list, fill_value=0)
+        monthly_exp = monthly_exp.reindex(monthly_labels_list, fill_value=0)
+        inc_exp_labels = monthly_labels_list.to_period("M").astype(str).tolist()
+        inc_exp_inc_vals = monthly_inc.fillna(0).astype(float).tolist()
+        inc_exp_exp_vals = monthly_exp.fillna(0).astype(float).tolist()
     else:
         net_series = pd.Series()
         income_series = pd.Series()
         expense_series = pd.Series()
         ts_labels = []
+        inc_exp_labels = []
+        inc_exp_inc_vals = []
+        inc_exp_exp_vals = []
 
     daily_net = (
-        frame.groupby("date")["amount"].sum().sort_index() if not frame.empty else pd.Series()
+        frame.groupby("date_dt")["amount"].sum().sort_index() if not frame.empty else pd.Series()
     )
     if not daily_net.empty:
-        daily_index = pd.to_datetime(daily_net.index, errors="coerce")
-        daily_net.index = daily_index
         daily_net = daily_net.dropna()
         monthly_avg = daily_net.groupby(daily_net.index.to_period("M")).mean()
+        # New: Cumulative flow
+        cum_net = daily_net.cumsum()
+        cum_labels = cum_net.index.date.astype(str).tolist()
+        cum_values = cum_net.fillna(0).astype(float).tolist()
     else:
         monthly_avg = pd.Series()
+        cum_labels = []
+        cum_values = []
+        
     monthly_avg_labels = monthly_avg.index.astype(str).tolist()
     monthly_avg_values = monthly_avg.fillna(0).astype(float).tolist()
     avg_monthly_net = float(monthly_avg.mean()) if not monthly_avg.empty else 0.0
@@ -186,6 +224,13 @@ def dashboard(request: HttpRequest) -> HttpResponse:
         "merchants": {"labels": merchant_labels, "values": merchant_values},
         "monthly_avg": {"labels": monthly_avg_labels, "values": monthly_avg_values},
         "banks": {"labels": bank_labels, "values": bank_values},
+        "top_income": {"labels": top_income_labels, "values": top_income_values},
+        "monthly_inc_exp": {
+            "labels": inc_exp_labels,
+            "income": inc_exp_inc_vals,
+            "expense": inc_exp_exp_vals,
+        },
+        "cumulative": {"labels": cum_labels, "values": cum_values},
     }
 
     context = {
@@ -197,6 +242,8 @@ def dashboard(request: HttpRequest) -> HttpResponse:
         "chart_data_json": chart_data,
         "filters": request.GET,
         "granularity": granularity,
+        "available_years": available_years,
+        "selected_year": year_filter,
         "banks": sorted(frame_all["bank"].dropna().unique().tolist()) if not frame_all.empty else [],
         "accounts": sorted(
             frame_all["account_last4"]

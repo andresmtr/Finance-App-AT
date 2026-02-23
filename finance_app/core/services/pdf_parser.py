@@ -109,11 +109,50 @@ def detect_bank_and_last4(text: str) -> Tuple[str, str]:
         bank = "Davivienda"
     elif "bbva" in t:
         bank = "BBVA"
+    elif "scotiabank" in t or "colpatria" in t:
+        bank = "Scotiabank Colpatria"
+    elif "falabella" in t:
+        bank = "Banco Falabella"
+    elif "nu " in t or "nubank" in t:
+        bank = "Nubank"
+    elif "rappipay" in t or "rappi" in t:
+        bank = "RappiPay"
+    elif "av villas" in t:
+        bank = "AV Villas"
+    elif "occidente" in t:
+        bank = "Banco de Occidente"
+    elif "popular" in t:
+        bank = "Banco Popular"
+    elif "caja social" in t:
+        bank = "Caja Social"
+    elif "itau" in t or "itaú" in t:
+        bank = "Itaú"
 
     last4 = ""
-    m = re.search(r"(?:cuenta|account|cta|tarjeta|card).{0,80}?(\d{4})\b", text, re.IGNORECASE)
-    if m:
-        last4 = m.group(1)
+    
+    # 1. Tarjetas enmascaradas obvias: **** **** **** 1234, XXXX-1234, ************1234
+    m_mask = re.search(r"(?:[xX\*]{4}[-\s]*){1,3}(\d{4})\b", text)
+    if m_mask:
+        last4 = m_mask.group(1)
+        return bank, last4
+
+    # 2. Buscar palabras clave seguidas de números (soporta saltos de línea y guiones)
+    m_kw = re.search(
+        r"(?:cuenta|account|cta\.?|tarjeta|card|producto|no\.|numero|número)\s*(?::|-)?\s*.{0,50}?(\b(?:\d[-\s]*){4,25}\b)", 
+        text, 
+        re.IGNORECASE | re.DOTALL
+    )
+    if m_kw:
+        digits_only = re.sub(r"\D", "", m_kw.group(1))
+        if len(digits_only) >= 4:
+            last4 = digits_only[-4:]
+            return bank, last4
+
+    # 3. Fallback genérico: el primer bloque de 4 números tras una keyword
+    m_fallback = re.search(r"(?:cuenta|account|cta|tarjeta|card|producto).{0,80}?(\d{4})\b", text, re.IGNORECASE | re.DOTALL)
+    if m_fallback:
+        last4 = m_fallback.group(1)
+        
     return bank, last4
 
 
@@ -122,16 +161,18 @@ def detect_bank_and_last4(text: str) -> Tuple[str, str]:
 # ===========================
 def classify_movement_type(description: str) -> str:
     d = _norm(description)
+    # The order is critical: evaluate more specific/compound rules FIRST
     rules = [
         ("cdt", ["cdt", "certificado de deposito", "certificado de depósito", "título", "titulo"]),
         ("intereses", ["interes", "interés", "rendimiento", "rendimientos"]),
         ("impuesto", ["gmf", "4x1000", "impuesto", "retencion", "retención", "iva"]),
-        ("cuota de manejo", ["cuota de manejo", "cuota manejo", "manejo"]),
-        ("retiro", ["retiro", "atm", "cajero", "withdrawal"]),
+        ("cuota de manejo", ["cuota de manejo", "cuota manejo", "manejo", "cout manej", "cobro couta manejo"]),
+        ("pago tarjeta credito", ["pago tarjeta", "tarj. credito", "tarjeta credito", "tarj cred", "tc ", " t.c."]),
+        ("retiro", ["retiro", "atm", "cajero", "withdrawal", "cajero automatico"]),
         ("transferencia", ["transferencia", "transf", "pse", "ach", "envio", "envío"]),
-        ("pago", ["pago", "cuota", "tarj", "tarjeta", "credito", "crédito", "servicio"]),
-        ("compra", ["compra", "pos", "datáfono", "datafono", "comercio", "apple.com", "bill", "supermercado", "mercado"]),
         ("abono", ["abono", "consignacion", "consignación", "deposito", "depósito", "ingreso", "recaudo"]),
+        ("compra", ["compra", "pos", "datáfono", "datafono", "comercio", "apple.com", "bill", "supermercado", "mercado"]),
+        ("pago", ["pago", "cuota", "tarj", "tarjeta", "credito", "crédito", "servicio"]),
     ]
     for label, kws in rules:
         if any(k in d for k in kws):
@@ -868,6 +909,77 @@ def fullpage_fallback_transactions(
     return txs, dbg
 
 
+import google.generativeai as genai
+import json
+import logging
+import warnings
+
+# Suppress the max_size warning from AutoImageProcessor
+warnings.filterwarnings("ignore", message=".*max_size parameter is deprecated.*")
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+
+def parse_with_gemini(pages: List[Image.Image], bank: str, last4: str, statement_year: Optional[int]) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return [], {"error": "GEMINI_API_KEY not set in environment"}
+    
+    try:
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-3-flash-preview')
+        
+        prompt = f"""
+You are a financial data extraction assistant. Extract ALL transaction records from the provided bank statement images.
+Known context:
+- Bank: {bank}
+- Account ending in: {last4}
+- Statement Year: {statement_year or 'Infer from document'}
+
+Return the data EXCLUSIVELY as a valid JSON list of objects. Do not include markdown code blocks like ```json or any other explanatory text.
+Required keys for each object:
+"date": "YYYY-MM-DD"
+"time": "HH:MM" (or empty string if not present)
+"description": "Full description of the movement/transaction"
+"reference": "Document, authorization, or reference number" (or empty string)
+"amount": float number (Use POSITIVE numbers for income/deposits/abonos/pagos a favor, and NEGATIVE numbers for expenses/withdrawals/compras/cargos/cuotas)
+"currency": "COP" or "USD" (infer from document, default COP)
+"location": "City or place" (or empty string)
+"channel": "Channel, ATM, branch" (or empty string)
+
+Ensure all mathematical signs for 'amount' accurately reflect whether money entered (+) or left (-) the account.
+"""
+        # To avoid payload being too massive, we might limit to max 15 pages for gemini.
+        content_payload = [prompt] + pages[:15]
+        
+        response = model.generate_content(content_payload)
+        text = response.text
+        
+        # Clean up possible markdown wrappers
+        text = text.strip()
+        if text.startswith("```json"):
+            text = text[7:]
+        if text.startswith("```"):
+            text = text[3:]
+        if text.endswith("```"):
+            text = text[:-3]
+            
+        m = re.search(r'\[.*\]', text, re.DOTALL)
+        if m:
+            text = m.group(0)
+            
+        data = json.loads(text)
+        
+        for tx in data:
+            tx["bank"] = bank
+            tx["account_last4"] = last4
+            tx["movement_type"] = classify_movement_type(tx.get("description", ""))
+            tx["id"] = uuid.uuid4().hex
+            
+        return data, {"gemini_used": True, "pages_sent": min(len(pages), 15)}
+    except Exception as e:
+        return [], {"error": f"Gemini API error: {str(e)}"}
+
 # ===========================
 # API principal para Django
 # ===========================
@@ -876,16 +988,19 @@ def parse_pdf_file(
     passwords: Optional[List[str]] = None,
     max_pages: Optional[int] = None,
     dpi: int = DEFAULT_DPI,
+    extraction_method: str = "auto",
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """
     Retorna:
       - txs: lista de movimientos
       - dbg_list: lista de dicts debug por tabla/página
     """
+    logger.info(f"==== Iniciando extracción de {Path(pdf_path).name} | Método: {extraction_method.upper()} ====")
     passwords = passwords or DEFAULT_PASSWORDS
 
     pages, used_pw, method = render_pdf_pages(pdf_path, passwords, dpi, max_pages)
     if not pages:
+        logger.error("No se pudo renderizar ninguna página del PDF.")
         return [], [{
             "error": "No pages rendered",
             "pdf": Path(pdf_path).name,
@@ -902,13 +1017,20 @@ def parse_pdf_file(
     bank, last4 = detect_bank_and_last4(first_txt)
     statement_year = infer_statement_year(first_txt)
 
-    # Si no detectamos el año en la primera página, buscamos en el resto
-    if not statement_year and len(pages) > 1:
+    # Si no detectamos el año o la cuenta en la primera página, buscamos en el resto
+    if (not statement_year or not last4) and len(pages) > 1:
         for p in pages[1:]:
             try:
                 txt = pytesseract.image_to_string(p.convert("L"), lang=LANG_OCR, config=TESS_CONFIG)
-                statement_year = infer_statement_year(txt)
-                if statement_year:
+                if not statement_year:
+                    statement_year = infer_statement_year(txt)
+                if not last4:
+                    b, l4 = detect_bank_and_last4(txt)
+                    if l4:
+                        last4 = l4
+                    if b != DEFAULT_BANK and bank == DEFAULT_BANK:
+                        bank = b
+                if statement_year and last4:
                     break
             except Exception:
                 continue
@@ -921,6 +1043,28 @@ def parse_pdf_file(
 
     txs: List[Dict[str, Any]] = []
     dbg_list: List[Dict[str, Any]] = []
+    
+    if extraction_method == "gemini":
+        logger.info("-> Ejecutando extracción DIRECTA vía Gemini AI")
+        gemini_txs, gemini_dbg = parse_with_gemini(pages, bank, last4, statement_year)
+        if gemini_txs:
+            for tx in gemini_txs:
+                tx["source_pdf"] = Path(pdf_path).name
+                tx["source_page"] = 0
+                tx["source_table"] = 0
+            txs.extend(gemini_txs)
+            dbg_list.append({
+                "pdf": Path(pdf_path).name,
+                "table": 0,
+                "fallback": "gemini",
+                **gemini_dbg
+            })
+            logger.info(f"<- Extracción completada. Gemini AI retornó {len(gemini_txs)} transacciones.")
+        else:
+            logger.error(f"<- Falló la extracción con Gemini AI: {gemini_dbg}")
+        return txs, dbg_list
+
+    logger.info("-> Ejecutando extracción vía MODELO LOCAL (Table Transformer + OCR)")
     
     last_valid_cols = None
     last_valid_col_map = None
@@ -1001,5 +1145,30 @@ def parse_pdf_file(
                     tx["source_page"] = p_idx
                     tx["source_table"] = 0
                 txs.extend(fallback_rows)
+
+    # Fallback to Gemini if no transactions were found
+    if not txs:
+        if extraction_method == "auto":
+            logger.warning("<- El modelo local no detectó transacciones (0). Activando rescate con GEMINI AI...")
+            gemini_txs, gemini_dbg = parse_with_gemini(pages, bank, last4, statement_year)
+            if gemini_txs:
+                for tx in gemini_txs:
+                    tx["source_pdf"] = Path(pdf_path).name
+                    tx["source_page"] = 0
+                    tx["source_table"] = 0
+                txs.extend(gemini_txs)
+                dbg_list.append({
+                    "pdf": Path(pdf_path).name,
+                    "table": 0,
+                    "fallback": "gemini",
+                    **gemini_dbg
+                })
+                logger.info(f"<- Rescate completado. Gemini AI recuperó {len(gemini_txs)} transacciones.")
+            else:
+                logger.error(f"<- El rescate con Gemini AI falló o no encontró datos: {gemini_dbg}")
+        else:
+            logger.warning("<- El modelo local no detectó transacciones (0). Fallback a Gemini inactivo por selección del usuario.")
+    else:
+        logger.info(f"<- Modelo local finalizado con éxito. Se detectaron {len(txs)} transacciones.")
 
     return txs, dbg_list

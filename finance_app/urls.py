@@ -23,6 +23,8 @@ urlpatterns = [
     path("transactions/<int:pk>/edit/", transaction_views.edit_transaction, name="edit_transaction"),
     path("transactions/<int:pk>/delete/", transaction_views.delete_transaction, name="delete_transaction"),
     path("update/", core_views.update_data, name="update_data"),
+    path("backup/download/", core_views.download_backup, name="download_backup"),
+    path("backup/restore/", core_views.restore_backup, name="restore_backup"),
     path("health/", core_views.health, name="health"),
 ]
 
