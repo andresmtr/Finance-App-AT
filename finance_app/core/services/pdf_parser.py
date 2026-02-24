@@ -171,7 +171,7 @@ def classify_movement_type(description: str) -> str:
         ("retiro", ["retiro", "atm", "cajero", "withdrawal", "cajero automatico"]),
         ("transferencia", ["transferencia", "transf", "pse", "ach", "envio", "envío"]),
         ("bolsillo", ["bolsillo", "abono de bolsillo a cuenta", "transferencia de bolsillo a cuenta"]),
-        ("abono", ["abono", "consignacion", "consignación", "deposito", "depósito", "ingreso", "recaudo"]),
+        ("abono", ["abono", "consignacion", "consignación", "deposito", "depósito", "ingreso", "recaudo", "nomina", "pago nomina"]),
         ("compra", ["compra", "pos", "datáfono", "datafono", "comercio", "apple.com", "bill", "supermercado", "mercado"]),
         ("pago", ["pago", "cuota", "tarj", "tarjeta", "credito", "crédito", "servicio"]),
     ]
