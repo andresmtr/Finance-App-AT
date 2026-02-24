@@ -97,3 +97,7 @@ LOGGING = {
     "handlers": {"console": {"class": "logging.StreamHandler"}},
     "root": {"handlers": ["console"], "level": "INFO"},
 }
+
+# Increase max fields for large form submissions (e.g., massive PDF imports)
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000
+
