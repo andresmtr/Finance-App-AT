@@ -409,9 +409,13 @@
       data: {
         labels: chartData.banks.labels,
         datasets: [{
-          label: "{% trans 'Amount' %}",
-          data: chartData.banks.values,
-          backgroundColor: "rgba(252, 191, 73, 0.8)",
+          label: "{% trans 'Income' %}",
+          data: chartData.banks.income,
+          backgroundColor: "rgba(42, 157, 143, 0.8)",
+        }, {
+          label: "{% trans 'Expenses' %}",
+          data: chartData.banks.expense,
+          backgroundColor: "rgba(230, 57, 70, 0.8)",
         }],
       },
       options: {

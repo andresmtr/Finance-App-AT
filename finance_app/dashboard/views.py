@@ -123,23 +123,30 @@ def dashboard(request: HttpRequest) -> HttpResponse:
 
     tx_count = int(len(frame.index)) if not frame.empty else 0
 
+    # Helper: Use merchant if available, else first 30 chars of description
+    if not frame.empty:
+        frame["display_entity"] = frame.apply(
+            lambda x: x["merchant"] if x.get("merchant") else (str(x["description"])[:35] + "..." if len(str(x["description"])) > 35 else str(x["description"])),
+            axis=1
+        )
+        income = frame[frame["income_flag"]]
+        expense = frame[frame["expense_flag"]]
+
     merchant_spend = (
         expense.assign(amount_abs=expense["amount"].abs())
-        .groupby("merchant")["amount_abs"]
+        .groupby("display_entity")["amount_abs"]
         .sum()
         .sort_values(ascending=False)
         .head(10)
         if not expense.empty
         else pd.Series()
     )
-    merchant_labels = merchant_spend.index.fillna("N/A").tolist()
-    # Replace empty merchant names with "Sin Nombre/Varios"
-    merchant_labels = [m if m else "Desconocido" for m in merchant_labels]
+    merchant_labels = [m if m else "Desconocido" for m in merchant_spend.index.fillna("N/A").tolist()]
     merchant_values = merchant_spend.fillna(0).astype(float).tolist()
     
-    # New: Top Income Sources
+    # Top Income Sources
     top_income = (
-        income.groupby("merchant")["amount"]
+        income.groupby("display_entity")["amount"]
         .sum()
         .sort_values(ascending=False)
         .head(5)
@@ -157,13 +164,20 @@ def dashboard(request: HttpRequest) -> HttpResponse:
     movement_labels = movement_group.index.fillna("N/A").astype(str).tolist()
     movement_values = movement_group.fillna(0).astype(float).tolist()
 
-    bank_group = (
-        frame.groupby("bank")["amount"].sum().sort_values(ascending=False)
-        if not frame.empty
-        else pd.Series()
-    )
-    bank_labels = bank_group.index.fillna("N/A").astype(str).tolist()
-    bank_values = bank_group.fillna(0).astype(float).tolist()
+    # Bank Group: Split into Income and Expense per bank
+    if not frame.empty:
+        bank_inc = income.groupby("bank")["amount"].sum()
+        bank_exp = expense.groupby("bank")["amount"].sum().abs()
+        all_banks = list(set(bank_inc.index.tolist() + bank_exp.index.tolist()))
+        bank_inc = bank_inc.reindex(all_banks, fill_value=0)
+        bank_exp = bank_exp.reindex(all_banks, fill_value=0)
+        bank_labels = [str(b) if b else "Desconocido" for b in all_banks]
+        bank_inc_vals = bank_inc.fillna(0).astype(float).tolist()
+        bank_exp_vals = bank_exp.fillna(0).astype(float).tolist()
+    else:
+        bank_labels = []
+        bank_inc_vals = []
+        bank_exp_vals = []
 
     if not frame.empty:
         indexed = frame.set_index("date_dt").sort_index()
@@ -222,8 +236,7 @@ def dashboard(request: HttpRequest) -> HttpResponse:
         },
         "movement": {"labels": movement_labels, "values": movement_values},
         "merchants": {"labels": merchant_labels, "values": merchant_values},
-        "monthly_avg": {"labels": monthly_avg_labels, "values": monthly_avg_values},
-        "banks": {"labels": bank_labels, "values": bank_values},
+        "banks": {"labels": bank_labels, "income": bank_inc_vals, "expense": bank_exp_vals},
         "top_income": {"labels": top_income_labels, "values": top_income_values},
         "monthly_inc_exp": {
             "labels": inc_exp_labels,
