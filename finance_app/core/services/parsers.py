@@ -12,6 +12,7 @@ COLUMNS = [
     "amount",
     "currency",
     "movement_type",
+    "classification",
     "reference",
     "merchant",
     "location",

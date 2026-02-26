@@ -36,6 +36,13 @@ class StagedTransaction(models.Model):
         (STATUS_SKIPPED, "Omitida"),
         (STATUS_DELETED, "Eliminada"),
     ]
+    
+    CLASSIFICATION_CHOICES = [
+        ('ingreso', 'Ingreso'),
+        ('gasto', 'Gasto'),
+        ('cdt', 'CDT'),
+        ('bolsillo', 'Bolsillo'),
+    ]
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -73,6 +80,11 @@ class StagedTransaction(models.Model):
         choices=STATUS_CHOICES,
         default=STATUS_PENDING,
     )
+    classification = models.CharField(
+        max_length=16,
+        choices=CLASSIFICATION_CHOICES,
+        default='gasto',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
 
@@ -103,4 +115,9 @@ class Transaction(models.Model):
     source_pdf = models.CharField(max_length=255, blank=True)
     source_page = models.IntegerField(null=True, blank=True)
     source_table = models.IntegerField(null=True, blank=True)
+    classification = models.CharField(
+        max_length=16,
+        choices=StagedTransaction.CLASSIFICATION_CHOICES,
+        default='gasto',
+    )
     created_at = models.DateTimeField(auto_now_add=True)

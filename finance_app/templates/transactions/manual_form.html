@@ -45,6 +45,14 @@
           </select>
         </div>
         <div class="col-md-6">
+          <label class="form-label">{% trans "Classification" %}</label>
+          <select class="form-select" name="classification">
+            {% for class_val, class_name in classifications %}
+              <option value="{{ class_val }}" {% if transaction.classification == class_val %}selected{% endif %}>{{ class_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-6">
           <label class="form-label">{% trans "Reference" %}</label>
           <input class="form-control" name="reference" value="{{ transaction.reference|default:'' }}">
         </div>

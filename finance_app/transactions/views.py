@@ -14,7 +14,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_http_methods
 
-from finance_app.core.services.pdf_ingestion import approve_staged_transaction, stage_pdf_files
+from finance_app.core.services.pdf_ingestion import approve_staged_transaction, stage_pdf_files, get_classification
 from finance_app.core.services.parsers import COLUMNS
 from finance_app.transactions.models import ImportBatch, MovementType, StagedTransaction, Transaction
 
@@ -102,6 +102,10 @@ def _apply_filters(queryset, params: dict):
     if account_last4:
         queryset = queryset.filter(account_last4=account_last4)
 
+    classification = params.get("classification")
+    if classification:
+        queryset = queryset.filter(classification=classification)
+
     movement_type = params.get("movement_type")
     if movement_type:
         queryset = queryset.filter(movement_type__name=movement_type)
@@ -137,6 +141,7 @@ def transactions(request: HttpRequest) -> HttpResponse:
                 "amount",
                 "currency",
                 "movement_type_name",
+                "classification",
                 "reference",
                 "merchant",
                 "location",
@@ -150,6 +155,7 @@ def transactions(request: HttpRequest) -> HttpResponse:
             {
                 **row,
                 "movement_type": row.pop("movement_type_name"),
+                "classification": row.pop("classification", ""),
                 "id": row.pop("external_id"),
             }
             for row in export_rows
@@ -168,9 +174,12 @@ def transactions(request: HttpRequest) -> HttpResponse:
         response["Content-Disposition"] = "attachment; filename=transacciones.xlsx"
         return response
 
-    paginator = Paginator(filtered.order_by("-date", "-time"), 25)
-    page_number = request.GET.get("page") or 1
-    page_obj = paginator.get_page(page_number)
+    if request.GET.get("show_all") == "1":
+        page_obj = type("PageObj", (), {"object_list": filtered.order_by("-date", "-time"), "has_previous": False, "has_next": False, "number": 1})()
+    else:
+        paginator = Paginator(filtered.order_by("-date", "-time"), 25)
+        page_number = request.GET.get("page") or 1
+        page_obj = paginator.get_page(page_number)
 
     banks = (
         base_qs.exclude(bank="").order_by().values_list("bank", flat=True).distinct()
@@ -190,6 +199,7 @@ def transactions(request: HttpRequest) -> HttpResponse:
         "banks": list(banks),
         "accounts": list(accounts),
         "movement_types": [mt.name for mt in movement_types],
+        "classifications": [c[0] for c in StagedTransaction.CLASSIFICATION_CHOICES],
     }
     return render(request, "transactions/transactions.html", context)
 
@@ -271,6 +281,10 @@ def review_next(request: HttpRequest, batch_id: int) -> HttpResponse:
             staged.description = request.POST.get(f"description_{row_id}", "") or ""
             movement_type_name = request.POST.get(f"movement_type_{row_id}")
             staged.movement_type = movement_map.get(movement_type_name) if movement_type_name else None
+            staged.classification = get_classification(
+                staged.movement_type.name if staged.movement_type else "",
+                staged.amount,
+            )
             staged.save()
             if action == "save_all":
                 status_map[row_id] = _("Saved")
@@ -324,15 +338,17 @@ def manual_transaction(request: HttpRequest) -> HttpResponse:
             if movement_type_name
             else None
         )
+        amount = _parse_decimal(request.POST.get("amount")) or Decimal("0.00")
         Transaction.objects.create(
             user=request.user,
             bank=request.POST.get("bank", "") or "",
             account_last4=request.POST.get("account_last4", "") or "",
             date=_parse_date(request.POST.get("date")),
             time=_parse_time(request.POST.get("time")),
-            amount=_parse_decimal(request.POST.get("amount")) or Decimal("0.00"),
+            amount=amount,
             currency=request.POST.get("currency", "") or "",
             movement_type=movement_type,
+            classification=request.POST.get("classification") or get_classification(movement_type.name if movement_type else "", amount),
             reference=request.POST.get("reference", "") or "",
             merchant=request.POST.get("merchant", "") or "",
             location=request.POST.get("location", "") or "",
@@ -345,7 +361,8 @@ def manual_transaction(request: HttpRequest) -> HttpResponse:
     return render(
         request,
         "transactions/manual_form.html",
-        {"movement_types": movement_types, "title": _("Manual Transaction")},
+        {"movement_types": movement_types, "classifications": StagedTransaction.CLASSIFICATION_CHOICES,
+        "title": _("Manual Transaction")},
     )
 
 
@@ -370,6 +387,7 @@ def edit_transaction(request: HttpRequest, pk: int) -> HttpResponse:
         tx.amount = _parse_decimal(request.POST.get("amount")) or Decimal("0.00")
         tx.currency = request.POST.get("currency", "") or ""
         tx.movement_type = movement_type
+        tx.classification = request.POST.get("classification") or get_classification(movement_type.name if movement_type else "", tx.amount)
         tx.reference = request.POST.get("reference", "") or ""
         tx.merchant = request.POST.get("merchant", "") or ""
         tx.location = request.POST.get("location", "") or ""
@@ -385,6 +403,7 @@ def edit_transaction(request: HttpRequest, pk: int) -> HttpResponse:
         "transactions/manual_form.html",
         {
             "transaction": tx,
+            "classifications": StagedTransaction.CLASSIFICATION_CHOICES,
             "movement_types": movement_types,
             "title": _("Edit Transaction"),
         },

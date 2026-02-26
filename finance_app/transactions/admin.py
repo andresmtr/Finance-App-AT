@@ -19,9 +19,9 @@ class ImportBatchAdmin(admin.ModelAdmin):
 class StagedTransactionAdmin(admin.ModelAdmin):
     list_display = (
         "id", "user", "bank", "account_last4", "date", "amount", 
-        "currency", "movement_type", "status", "created_at"
+        "currency", "movement_type", "classification", "status", "created_at"
     )
-    list_filter = ("status", "bank", "currency", "movement_type", "user")
+    list_filter = ("status", "classification", "bank", "currency", "movement_type", "user")
     search_fields = (
         "description", "reference", "merchant", "bank", 
         "account_last4", "user__username", "user__email"
@@ -33,9 +33,9 @@ class StagedTransactionAdmin(admin.ModelAdmin):
 class TransactionAdmin(admin.ModelAdmin):
     list_display = (
         "id", "user", "bank", "account_last4", "date", "amount", 
-        "currency", "movement_type", "created_at"
+        "currency", "movement_type", "classification", "created_at"
     )
-    list_filter = ("bank", "currency", "movement_type", "user")
+    list_filter = ("classification", "bank", "currency", "movement_type", "user")
     search_fields = (
         "description", "reference", "merchant", "bank", 
         "account_last4", "user__username", "user__email"

@@ -5,6 +5,11 @@
 {% block container_class %}container-fluid px-4{% endblock %}
 
 {% block content %}
+  <style>
+    .chart-h-320 { height: 320px; }
+    .chart-h-260 { height: 260px; }
+  </style>
+
   <div class="hero mb-4 py-4 px-4">
     <h1 class="display-6">{% trans "Financial Summary" %}</h1>
     <p class="mb-0">{% trans "KPIs and trends from your transactions." %}</p>
@@ -40,20 +45,27 @@
         </select>
       </div>
       <div class="col-md-2">
-        <label class="form-label small fw-bold text-muted">{% trans "Type" %}</label>
+        <label class="form-label small fw-bold text-muted">{% trans "Classification" %}</label>
+        <select name="classification" class="form-select form-select-sm">
+          <option value="">{% trans "All" %}</option>
+          {% for classification in classifications %}
+            <option value="{{ classification }}" {% if filters.classification == classification %}selected{% endif %}>{{ classification|title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small fw-bold text-muted">{% trans "Movement type" %}</label>
         <select name="movement_type" class="form-select form-select-sm">
           <option value="">{% trans "All" %}</option>
-          {% for movement in movement_types %}
-            <option value="{{ movement }}" {% if filters.movement_type == movement %}selected{% endif %}>{{ movement }}</option>
+          {% for movement_type in movement_types %}
+            <option value="{{ movement_type }}" {% if filters.movement_type == movement_type %}selected{% endif %}>{{ movement_type }}</option>
           {% endfor %}
         </select>
       </div>
       <div class="col-md-2">
         <label class="form-label small fw-bold text-muted">{% trans "Time series" %}</label>
         <select name="granularity" class="form-select form-select-sm">
-          <option value="daily" {% if granularity == "daily" %}selected{% endif %}>{% trans "Daily" %}</option>
-          <option value="weekly" {% if granularity == "weekly" %}selected{% endif %}>{% trans "Weekly" %}</option>
-          <option value="monthly" {% if granularity == "monthly" %}selected{% endif %}>{% trans "Monthly" %}</option>
+          <option value="monthly" selected>{% trans "Monthly (Month-Year)" %}</option>
         </select>
       </div>
       <div class="col-md-2">
@@ -69,33 +81,41 @@
 
   <div class="row g-3 mb-4">
     <div class="col-xl-2 col-md-4 col-sm-6">
-      <div class="kpi p-3 text-center">
+      <div class="kpi p-3 text-center h-100 d-flex flex-column justify-content-center">
         <h6 class="text-muted mb-2" style="font-size:0.8rem;">{% trans "Total income" %}</h6>
         <h4 class="text-success mb-0">${{ total_income|money_es }}</h4>
       </div>
     </div>
     <div class="col-xl-2 col-md-4 col-sm-6">
-      <div class="kpi p-3 text-center">
+      <div class="kpi p-3 text-center h-100 d-flex flex-column justify-content-center">
         <h6 class="text-muted mb-2" style="font-size:0.8rem;">{% trans "Total expenses" %}</h6>
         <h4 class="text-danger mb-0">${{ total_expense|money_es }}</h4>
       </div>
     </div>
     <div class="col-xl-2 col-md-4 col-sm-6">
-      <div class="kpi p-3 text-center">
+      <div class="kpi p-3 text-center h-100 d-flex flex-column justify-content-center">
         <h6 class="text-muted mb-2" style="font-size:0.8rem;">{% trans "Net" %}</h6>
         <h4 class="text-primary mb-0">${{ net|money_es }}</h4>
       </div>
     </div>
-    <div class="col-xl-3 col-md-6 col-sm-6">
-      <div class="kpi p-3 text-center">
-        <h6 class="text-muted mb-2" style="font-size:0.8rem;">{% trans "Transactions" %}</h6>
-        <h4 class="text-dark mb-0">{{ tx_count|int_es }}</h4>
-      </div>
-    </div>
-    <div class="col-xl-3 col-md-6 col-sm-12">
-      <div class="kpi p-3 text-center">
-        <h6 class="text-muted mb-2" style="font-size:0.8rem;">{% trans "Monthly avg (net)" %}</h6>
-        <h4 class="text-dark mb-0">${{ avg_monthly_net|money_es }}</h4>
+    <div class="col-xl-6 col-md-12 col-sm-12">
+      <div class="row g-3">
+        <div class="col-md-6 col-sm-6">
+          <div class="kpi p-3 text-center h-100 d-flex flex-column justify-content-center">
+            <h6 class="text-muted mb-2" style="font-size:0.8rem;">{% trans "CDT (Ingreso / Salida)" %}</h6>
+            <h4 class="text-info mb-0" style="font-size: 1.1rem;">
+              <span class="text-success">+${{ total_cdt_in|money_es }}</span><br class="d-md-none"><span class="d-none d-md-inline"> / </span><span class="text-danger">-${{ total_cdt_out|money_es }}</span>
+            </h4>
+          </div>
+        </div>
+        <div class="col-md-6 col-sm-6">
+          <div class="kpi p-3 text-center h-100 d-flex flex-column justify-content-center">
+            <h6 class="text-muted mb-2" style="font-size:0.8rem;">{% trans "Bolsillo (Ingreso / Salida)" %}</h6>
+            <h4 class="text-warning mb-0" style="font-size: 1.1rem;">
+              <span class="text-success">+${{ total_bolsillo_in|money_es }}</span><br class="d-md-none"><span class="d-none d-md-inline"> / </span><span class="text-danger">-${{ total_bolsillo_out|money_es }}</span>
+            </h4>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -103,17 +123,17 @@
   <div class="row g-4">
     <!-- Row 1: Time Series & Cumulative -->
     <div class="col-lg-6">
-      <div class="chart-card">
+      <div class="chart-card h-100">
         <h6 class="text-muted mb-3">{% trans "Time series" %}</h6>
-        <div style="height: 300px;">
+        <div class="chart-h-320">
           <canvas id="timeSeries"></canvas>
         </div>
       </div>
     </div>
     <div class="col-lg-6">
-      <div class="chart-card">
+      <div class="chart-card h-100">
         <h6 class="text-muted mb-3">{% trans "Cumulative Cash Flow" %}</h6>
-        <div style="height: 300px;">
+        <div class="chart-h-320">
           <canvas id="cumulativeChart"></canvas>
         </div>
       </div>
@@ -121,43 +141,51 @@
     
     <!-- Row 2: Monthly Income vs Expense & Movement Types -->
     <div class="col-lg-8">
-      <div class="chart-card">
+      <div class="chart-card h-100">
         <h6 class="text-muted mb-3">{% trans "Monthly Income vs Expenses" %}</h6>
-        <div style="height: 300px;">
+        <div class="chart-h-320">
           <canvas id="monthlyIncExpChart"></canvas>
         </div>
       </div>
     </div>
     <div class="col-lg-4">
-      <div class="chart-card">
-        <h6 class="text-muted mb-3">{% trans "By movement type" %}</h6>
-        <div style="height: 300px; display: flex; justify-content: center;">
+      <div class="chart-card h-100">
+        <h6 class="text-muted mb-3">{% trans "By classification" %}</h6>
+        <div class="chart-h-320 d-flex justify-content-center">
           <canvas id="movementChart"></canvas>
         </div>
       </div>
     </div>
     
-    <!-- Row 3: Banks, Top Income, Top Expense -->
-    <div class="col-lg-4">
-      <div class="chart-card">
+    <!-- Row 3: Banks, Types, Top Income, Top Expense -->
+    <div class="col-xl-3 col-md-6">
+      <div class="chart-card h-100">
+        <h6 class="text-muted mb-3">{% trans "By movement type" %}</h6>
+        <div class="chart-h-260">
+          <canvas id="typeChart"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+      <div class="chart-card h-100">
         <h6 class="text-muted mb-3">{% trans "Amount by bank" %}</h6>
-        <div style="height: 250px;">
+        <div class="chart-h-260">
           <canvas id="bankChart"></canvas>
         </div>
       </div>
     </div>
-    <div class="col-lg-4">
-      <div class="chart-card">
+    <div class="col-xl-3 col-md-6">
+      <div class="chart-card h-100">
         <h6 class="text-muted mb-3">{% trans "Top 5 Income Sources" %}</h6>
-        <div style="height: 250px;">
+        <div class="chart-h-260">
           <canvas id="topIncomeChart"></canvas>
         </div>
       </div>
     </div>
-    <div class="col-lg-4">
-      <div class="chart-card">
+    <div class="col-xl-3 col-md-6">
+      <div class="chart-card h-100">
         <h6 class="text-muted mb-3">{% trans "Top 10 merchants by spend" %}</h6>
-        <div style="height: 250px;">
+        <div class="chart-h-260">
           <canvas id="merchantChart"></canvas>
         </div>
       </div>
@@ -203,32 +231,51 @@
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
+    const monthAxis = {
+      ticks: {
+        maxRotation: 0,
+        minRotation: 0,
+        autoSkip: true,
+        maxTicksLimit: 12,
+      },
+    };
 
     new Chart(document.getElementById("timeSeries"), {
       type: "line",
       data: {
         labels: chartData.time_series.labels,
         datasets: [{
-          label: "{% trans 'Income' %}",
-          data: chartData.time_series.income,
-          borderColor: "#2a9d8f",
-          backgroundColor: "rgba(42, 157, 143, 0.2)",
+          label: "{% trans 'Ingreso' %}",
+          data: chartData.time_series.class_ingreso,
+          borderColor: "#4caf50",
+          backgroundColor: "rgba(76, 175, 80, 0.1)",
           tension: 0.2,
-          fill: true,
+          fill: false,
+          borderWidth: 2,
         }, {
-          label: "{% trans 'Expenses' %}",
-          data: chartData.time_series.expense,
-          borderColor: "#e63946",
-          backgroundColor: "rgba(230, 57, 70, 0.2)",
+          label: "{% trans 'Gasto' %}",
+          data: chartData.time_series.class_gasto,
+          borderColor: "#f44336",
+          backgroundColor: "rgba(244, 67, 54, 0.1)",
           tension: 0.2,
-          fill: true,
+          fill: false,
+          borderWidth: 2,
         }, {
-          label: "{% trans 'Net' %}",
-          data: chartData.time_series.net,
-          borderColor: "#1d3557",
-          backgroundColor: "rgba(69, 123, 157, 0.2)",
+          label: "{% trans 'CDT' %}",
+          data: chartData.time_series.class_cdt,
+          borderColor: "#2196f3",
+          backgroundColor: "rgba(33, 150, 243, 0.1)",
           tension: 0.2,
-          fill: true,
+          fill: false,
+          borderWidth: 2,
+        }, {
+          label: "{% trans 'Bolsillo' %}",
+          data: chartData.time_series.class_bolsillo,
+          borderColor: "#ff9800",
+          backgroundColor: "rgba(255, 152, 0, 0.1)",
+          tension: 0.2,
+          fill: false,
+          borderWidth: 2,
         }],
       },
       options: {
@@ -242,6 +289,7 @@
           },
         },
         scales: {
+          x: monthAxis,
           y: {
             ticks: {
               callback: (value) => formatNumber.format(value),
@@ -267,6 +315,37 @@
           tooltip: {
             callbacks: {
               label: (context) => `${context.label}: ${formatNumber.format(context.parsed)}`,
+            },
+          },
+        },
+      },
+    });
+
+    new Chart(document.getElementById("typeChart"), {
+      type: "bar",
+      data: {
+        labels: chartData.types.labels,
+        datasets: [{
+          label: "{% trans 'Total' %}",
+          data: chartData.types.values,
+          backgroundColor: "rgba(156, 39, 176, 0.7)",
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: "y",
+        plugins: {
+          tooltip: {
+            callbacks: {
+              label: (context) => `${context.dataset.label}: ${formatNumber.format(context.parsed.x)}`,
+            },
+          },
+        },
+        scales: {
+          x: {
+            ticks: {
+              callback: (value) => formatNumber.format(value),
             },
           },
         },
@@ -360,6 +439,7 @@
           },
         },
         scales: {
+          x: monthAxis,
           y: {
             ticks: {
               callback: (value) => formatNumber.format(value),
@@ -395,6 +475,7 @@
           },
         },
         scales: {
+          x: monthAxis,
           y: {
             ticks: {
               callback: (value) => formatNumber.format(value),

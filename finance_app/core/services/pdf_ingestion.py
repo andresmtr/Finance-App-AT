@@ -66,6 +66,22 @@ def _movement_type_map() -> dict[str, MovementType]:
     return {mt.name: mt for mt in MovementType.objects.filter(is_active=True)}
 
 
+def get_classification(movement_name: str, amount=None) -> str:
+    name = (movement_name or "").strip().lower()
+    if "cdt" in name:
+        return "cdt"
+    if "bolsillo" in name:
+        return "bolsillo"
+
+    parsed_amount = _to_decimal(amount)
+    if parsed_amount is not None:
+        if parsed_amount > 0:
+            return "ingreso"
+        if parsed_amount < 0:
+            return "gasto"
+    return "gasto"
+
+
 def stage_pdf_files(user, pdf_paths: Iterable[Path], passwords: List[str] | None = None, extraction_method: str = "auto") -> ImportBatch:
     batch = ImportBatch.objects.create(user=user, source_label="PDF")
     type_map = _movement_type_map()
@@ -107,6 +123,7 @@ def stage_pdf_files(user, pdf_paths: Iterable[Path], passwords: List[str] | None
                     source_pdf=row.get("source_pdf", "") or "",
                     source_page=row.get("source_page", None),
                     source_table=row.get("source_table", None),
+                    classification=get_classification(movement_name, amount),
                 )
             )
 
@@ -135,6 +152,7 @@ def approve_staged_transaction(staged: StagedTransaction) -> Transaction:
         source_pdf=staged.source_pdf,
         source_page=staged.source_page,
         source_table=staged.source_table,
+        classification=staged.classification,
     )
     staged.status = StagedTransaction.STATUS_APPROVED
     staged.save(update_fields=["status"])
