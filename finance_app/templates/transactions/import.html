@@ -26,8 +26,9 @@
     <div class="mb-4">
       <label class="form-label fw-bold">{% trans "Extraction Method" %}</label>
       <select class="form-select" name="extraction_method">
-        <option value="auto">{% trans "Auto (Local Model with Gemini AI Fallback)" %}</option>
+        <option value="auto">{% trans "Auto (Local Model with Gemini/OpenAI Fallback)" %}</option>
         <option value="gemini">{% trans "Gemini AI Only (Requires API Key)" %}</option>
+        <option value="openai">{% trans "OpenAI API Only (Requires API Key)" %}</option>
         <option value="local">{% trans "Local Model Only" %}</option>
       </select>
       <div class="form-text">{% trans "Choose which AI model to use to extract data from the PDFs." %}</div>

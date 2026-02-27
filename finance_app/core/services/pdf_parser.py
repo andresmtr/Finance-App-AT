@@ -1,10 +1,15 @@
 # finance_app/core/services/pdf_parser.py
 # -*- coding: utf-8 -*-
 
+import base64
+import io
+import json
+import logging
 import os
 import re
 import tempfile
 import uuid
+import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -911,9 +916,6 @@ def fullpage_fallback_transactions(
 
 
 import google.generativeai as genai
-import json
-import logging
-import warnings
 
 # Suppress the max_size warning from AutoImageProcessor
 warnings.filterwarnings("ignore", message=".*max_size parameter is deprecated.*")
@@ -921,16 +923,8 @@ warnings.filterwarnings("ignore", message=".*max_size parameter is deprecated.*"
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
-def parse_with_gemini(pages: List[Image.Image], bank: str, last4: str, statement_year: Optional[int]) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        return [], {"error": "GEMINI_API_KEY not set in environment"}
-    
-    try:
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-3-flash-preview')
-        
-        prompt = f"""
+def _build_ai_extraction_prompt(bank: str, last4: str, statement_year: Optional[int]) -> str:
+    return f"""
 You are a financial data extraction assistant. Extract ALL transaction records from the provided bank statement images.
 Known context:
 - Bank: {bank}
@@ -950,36 +944,108 @@ Required keys for each object:
 
 Ensure all mathematical signs for 'amount' accurately reflect whether money entered (+) or left (-) the account.
 """
+
+
+def _parse_ai_json_list(text: str) -> List[Dict[str, Any]]:
+    cleaned = (text or "").strip()
+    if cleaned.startswith("```json"):
+        cleaned = cleaned[7:]
+    if cleaned.startswith("```"):
+        cleaned = cleaned[3:]
+    if cleaned.endswith("```"):
+        cleaned = cleaned[:-3]
+
+    match = re.search(r"\[.*\]", cleaned, re.DOTALL)
+    if match:
+        cleaned = match.group(0)
+
+    data = json.loads(cleaned)
+    if isinstance(data, list):
+        return [row for row in data if isinstance(row, dict)]
+    return []
+
+
+def _enrich_ai_transactions(data: List[Dict[str, Any]], bank: str, last4: str) -> List[Dict[str, Any]]:
+    for tx in data:
+        tx["bank"] = bank
+        tx["account_last4"] = last4
+        tx["movement_type"] = classify_movement_type(tx.get("description", ""))
+        tx["id"] = uuid.uuid4().hex
+    return data
+
+
+def parse_with_gemini(pages: List[Image.Image], bank: str, last4: str, statement_year: Optional[int]) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return [], {"error": "GEMINI_API_KEY not set in environment"}
+    
+    try:
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-3-flash-preview')
+
+        prompt = _build_ai_extraction_prompt(bank, last4, statement_year)
         # To avoid payload being too massive, we might limit to max 15 pages for gemini.
         content_payload = [prompt] + pages[:15]
         
         response = model.generate_content(content_payload)
-        text = response.text
-        
-        # Clean up possible markdown wrappers
-        text = text.strip()
-        if text.startswith("```json"):
-            text = text[7:]
-        if text.startswith("```"):
-            text = text[3:]
-        if text.endswith("```"):
-            text = text[:-3]
-            
-        m = re.search(r'\[.*\]', text, re.DOTALL)
-        if m:
-            text = m.group(0)
-            
-        data = json.loads(text)
-        
-        for tx in data:
-            tx["bank"] = bank
-            tx["account_last4"] = last4
-            tx["movement_type"] = classify_movement_type(tx.get("description", ""))
-            tx["id"] = uuid.uuid4().hex
-            
+
+        data = _parse_ai_json_list(response.text)
+        data = _enrich_ai_transactions(data, bank, last4)
+
         return data, {"gemini_used": True, "pages_sent": min(len(pages), 15)}
     except Exception as e:
         return [], {"error": f"Gemini API error: {str(e)}"}
+
+
+def parse_with_openai(pages: List[Image.Image], bank: str, last4: str, statement_year: Optional[int]) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return [], {"error": "OPENAI_API_KEY not set in environment"}
+
+    try:
+        from openai import OpenAI
+    except Exception as e:
+        return [], {"error": f"OpenAI SDK import error: {str(e)}"}
+
+    try:
+        model_name = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+        client = OpenAI(api_key=api_key)
+        prompt = _build_ai_extraction_prompt(bank, last4, statement_year)
+
+        content_payload: List[Dict[str, Any]] = [{"type": "text", "text": prompt}]
+        for page in pages[:15]:
+            buffer = io.BytesIO()
+            page.convert("RGB").save(buffer, format="JPEG", quality=90)
+            encoded = base64.b64encode(buffer.getvalue()).decode("utf-8")
+            content_payload.append({
+                "type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;base64,{encoded}"},
+            })
+
+        response = client.chat.completions.create(
+            model=model_name,
+            temperature=0,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You extract bank-statement transactions and return strictly valid JSON.",
+                },
+                {
+                    "role": "user",
+                    "content": content_payload,
+                },
+            ],
+        )
+        content = response.choices[0].message.content or ""
+        if isinstance(content, list):
+            content = "".join(
+                part.get("text", "") for part in content if isinstance(part, dict)
+            )
+        data = _parse_ai_json_list(content)
+        data = _enrich_ai_transactions(data, bank, last4)
+        return data, {"openai_used": True, "pages_sent": min(len(pages), 15), "model": model_name}
+    except Exception as e:
+        return [], {"error": f"OpenAI API error: {str(e)}"}
 
 # ===========================
 # API principal para Django
@@ -1065,6 +1131,26 @@ def parse_pdf_file(
             logger.error(f"<- Falló la extracción con Gemini AI: {gemini_dbg}")
         return txs, dbg_list
 
+    if extraction_method == "openai":
+        logger.info("-> Ejecutando extracción DIRECTA vía OpenAI API")
+        openai_txs, openai_dbg = parse_with_openai(pages, bank, last4, statement_year)
+        if openai_txs:
+            for tx in openai_txs:
+                tx["source_pdf"] = Path(pdf_path).name
+                tx["source_page"] = 0
+                tx["source_table"] = 0
+            txs.extend(openai_txs)
+            dbg_list.append({
+                "pdf": Path(pdf_path).name,
+                "table": 0,
+                "fallback": "openai",
+                **openai_dbg
+            })
+            logger.info(f"<- Extracción completada. OpenAI retornó {len(openai_txs)} transacciones.")
+        else:
+            logger.error(f"<- Falló la extracción con OpenAI: {openai_dbg}")
+        return txs, dbg_list
+
     logger.info("-> Ejecutando extracción vía MODELO LOCAL (Table Transformer + OCR)")
     
     last_valid_cols = None
@@ -1147,7 +1233,7 @@ def parse_pdf_file(
                     tx["source_table"] = 0
                 txs.extend(fallback_rows)
 
-    # Fallback to Gemini if no transactions were found
+    # Fallback AI when local extractor finds 0 transactions
     if not txs:
         if extraction_method == "auto":
             logger.warning("<- El modelo local no detectó transacciones (0). Activando rescate con GEMINI AI...")
@@ -1167,8 +1253,25 @@ def parse_pdf_file(
                 logger.info(f"<- Rescate completado. Gemini AI recuperó {len(gemini_txs)} transacciones.")
             else:
                 logger.error(f"<- El rescate con Gemini AI falló o no encontró datos: {gemini_dbg}")
+                logger.warning("<- Activando segundo rescate con OPENAI API...")
+                openai_txs, openai_dbg = parse_with_openai(pages, bank, last4, statement_year)
+                if openai_txs:
+                    for tx in openai_txs:
+                        tx["source_pdf"] = Path(pdf_path).name
+                        tx["source_page"] = 0
+                        tx["source_table"] = 0
+                    txs.extend(openai_txs)
+                    dbg_list.append({
+                        "pdf": Path(pdf_path).name,
+                        "table": 0,
+                        "fallback": "openai",
+                        **openai_dbg
+                    })
+                    logger.info(f"<- Rescate completado. OpenAI recuperó {len(openai_txs)} transacciones.")
+                else:
+                    logger.error(f"<- El rescate con OpenAI también falló o no encontró datos: {openai_dbg}")
         else:
-            logger.warning("<- El modelo local no detectó transacciones (0). Fallback a Gemini inactivo por selección del usuario.")
+            logger.warning("<- El modelo local no detectó transacciones (0). Fallback AI inactivo por selección del usuario.")
     else:
         logger.info(f"<- Modelo local finalizado con éxito. Se detectaron {len(txs)} transacciones.")
 
