@@ -90,6 +90,16 @@ SAMBA_HOST = os.getenv("SAMBA_HOST", "")
 SAMBA_USERNAME = os.getenv("SAMBA_USERNAME", "")
 SAMBA_PASSWORD = os.getenv("SAMBA_PASSWORD", "")
 SAMBA_REMOTE_PATH = os.getenv("SAMBA_REMOTE_PATH", "")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_CHAT_MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_ALLOWED_CHAT_IDS = [
+    chat_id.strip() for chat_id in os.getenv("TELEGRAM_ALLOWED_CHAT_IDS", "").split(",") if chat_id.strip()
+]
+TELEGRAM_DEFAULT_USER_ID = int(os.getenv("TELEGRAM_DEFAULT_USER_ID", "1"))
+TELEGRAM_POLL_TIMEOUT = int(os.getenv("TELEGRAM_POLL_TIMEOUT", "30"))
+TELEGRAM_WEBHOOK_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
+TELEGRAM_WEBHOOK_URL = os.getenv("TELEGRAM_WEBHOOK_URL", "")
 
 LOGGING = {
     "version": 1,
@@ -100,4 +110,3 @@ LOGGING = {
 
 # Increase max fields for large form submissions (e.g., massive PDF imports)
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000
-

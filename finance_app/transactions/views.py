@@ -1,5 +1,7 @@
+import json
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
+from functools import lru_cache
 from pathlib import Path
 from uuid import uuid4
 import re
@@ -9,14 +11,21 @@ from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import F
-from django.http import HttpRequest, HttpResponse
+from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.translation import gettext as _
+from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
 from finance_app.core.services.pdf_ingestion import approve_staged_transaction, stage_pdf_files, get_classification
 from finance_app.core.services.parsers import COLUMNS
 from finance_app.transactions.models import ImportBatch, MovementType, StagedTransaction, Transaction
+from finance_app.transactions.services.telegram_finance import (
+    FinanceAssistant,
+    TelegramBotClient,
+    build_help_text,
+    build_reply_for_chat_message,
+)
 
 
 def _parse_date(value: str | None) -> date | None:
@@ -416,3 +425,54 @@ def delete_transaction(request: HttpRequest, pk: int) -> HttpResponse:
     tx = get_object_or_404(Transaction, pk=pk, user=request.user)
     tx.delete()
     return redirect("transactions")
+
+
+@lru_cache(maxsize=1)
+def _telegram_assistant() -> FinanceAssistant:
+    return FinanceAssistant()
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def telegram_webhook(request: HttpRequest) -> HttpResponse:
+    token = settings.TELEGRAM_BOT_TOKEN.strip()
+    if not token:
+        return JsonResponse({"ok": False, "error": "TELEGRAM_BOT_TOKEN not configured"}, status=500)
+
+    webhook_secret = settings.TELEGRAM_WEBHOOK_SECRET.strip()
+    if webhook_secret:
+        received_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+        if received_secret != webhook_secret:
+            return JsonResponse({"ok": False, "error": "forbidden"}, status=403)
+
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"ok": False, "error": "invalid_json"}, status=400)
+
+    message = payload.get("message") or {}
+    chat = message.get("chat") or {}
+    chat_id = chat.get("id")
+    text = (message.get("text") or "").strip()
+    if chat_id is None or not text:
+        return JsonResponse({"ok": True})
+
+    allowed_ids = {str(x) for x in settings.TELEGRAM_ALLOWED_CHAT_IDS}
+    if allowed_ids and str(chat_id) not in allowed_ids:
+        return JsonResponse({"ok": True})
+
+    if text.startswith("/start") or text.startswith("/help") or text.startswith("/ayuda"):
+        answer = build_help_text()
+    else:
+        answer = build_reply_for_chat_message(
+            chat_id=str(chat_id),
+            text=text,
+            assistant=_telegram_assistant(),
+            user_id=settings.TELEGRAM_DEFAULT_USER_ID,
+        )
+
+    TelegramBotClient(token=token, timeout=settings.TELEGRAM_POLL_TIMEOUT).send_message(
+        chat_id=int(chat_id),
+        text=answer[:4096],
+    )
+    return JsonResponse({"ok": True})

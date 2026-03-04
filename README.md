@@ -34,9 +34,53 @@ DJANGO_SECRET_KEY=...
 DEBUG=true
 ALLOWED_HOSTS=*
 PDF_DEBUG=1
+OPENAI_API_KEY=...
+OPENAI_CHAT_MODEL=gpt-4o-mini
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_ALLOWED_CHAT_IDS=793260423
+TELEGRAM_DEFAULT_USER_ID=1
+TELEGRAM_POLL_TIMEOUT=30
+TELEGRAM_WEBHOOK_SECRET=...
+TELEGRAM_WEBHOOK_URL=https://tu-dominio.com/telegram/webhook/
 ```
 
 `PDF_DEBUG=1` activa logs de parsing similares al notebook.
+
+## Bot de Telegram (preguntas en lenguaje natural)
+Conecta Telegram directo a Django/SQLite para consultar gastos/ingresos sin n8n.
+
+1) Configura un token nuevo en `.env`:
+```bash
+TELEGRAM_BOT_TOKEN=123456:ABC...
+TELEGRAM_ALLOWED_CHAT_IDS=793260423
+TELEGRAM_WEBHOOK_SECRET=mi-secreto-largo
+TELEGRAM_WEBHOOK_URL=https://tu-dominio.com/telegram/webhook/
+```
+
+2) Registra el webhook:
+```bash
+python manage.py telegram_set_webhook --info
+```
+
+3) Escribe al bot en Telegram.
+Flujo conversacional (como tu n8n):
+- Envia fecha: `2026-01-12` (o `hoy`, `ayer`)
+- Luego pregunta: `cuanto gaste`, `top 5 comercios`, `cuantas transacciones`
+- Cierra sesion: `finalizar`
+
+Notas:
+- Ruta webhook en la app: `/telegram/webhook/`
+- Si no quieres webhook, puedes usar polling:
+```bash
+python manage.py telegram_finance_bot
+```
+
+Preguntas ejemplo:
+- `2026-01-12`
+- `cuanto gaste`
+- `top 5 comercios`
+- `ultimas 10 transacciones`
+- `finalizar`
 
 ## Desarrollo local (opcional)
 ```

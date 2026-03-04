@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import MovementType, ImportBatch, StagedTransaction, Transaction
+from .models import MovementType, ImportBatch, StagedTransaction, TelegramChatSession, Transaction
 
 @admin.register(MovementType)
 class MovementTypeAdmin(admin.ModelAdmin):
@@ -42,3 +42,10 @@ class TransactionAdmin(admin.ModelAdmin):
     )
     date_hierarchy = "date"
     readonly_fields = ("created_at",)
+
+
+@admin.register(TelegramChatSession)
+class TelegramChatSessionAdmin(admin.ModelAdmin):
+    list_display = ("chat_id", "selected_date", "updated_at")
+    search_fields = ("chat_id",)
+    readonly_fields = ("created_at", "updated_at")

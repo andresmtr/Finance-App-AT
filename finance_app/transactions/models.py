@@ -121,3 +121,13 @@ class Transaction(models.Model):
         default='gasto',
     )
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class TelegramChatSession(models.Model):
+    chat_id = models.CharField(max_length=64, unique=True)
+    selected_date = models.DateField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self) -> str:
+        return f"Telegram chat {self.chat_id} ({self.selected_date or 'sin_fecha'})"
