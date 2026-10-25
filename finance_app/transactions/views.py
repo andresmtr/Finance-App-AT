@@ -10,8 +10,8 @@ import pandas as pd
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import F
-from django.http import HttpRequest, HttpResponse, JsonResponse
+from django.db.models import Count, F, Q
+from django.http import FileResponse, Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.translation import gettext as _
 from django.views.decorators.csrf import csrf_exempt
@@ -62,7 +62,7 @@ def _parse_decimal(value: str | None):
         return None
     text = str(value).strip()
     neg = False
-    if re.search(r"(^\s*-\s*)|(\(\s*)", text):
+    if re.search(r"(^\s*-\s*)|(\(\s*)|(\s*-\s*$)", text):
         neg = True
     text = re.sub(r"[^\d,.\-()]", "", text)
     text = text.replace("(", "").replace(")", "").replace("-", "")
@@ -239,15 +239,20 @@ def import_pdfs(request: HttpRequest) -> HttpResponse:
                     handle.write(chunk)
             saved_paths.append(dest)
 
-        batch = stage_pdf_files(request.user, saved_paths, passwords=password_list, extraction_method=extraction_method)
-        for path in saved_paths:
-            try:
-                path.unlink()
-            except OSError:
-                pass
+        try:
+            batch = stage_pdf_files(request.user, saved_paths, passwords=password_list, extraction_method=extraction_method)
+        except ValueError as exc:
+            return render(request, "transactions/import.html", {"error": str(exc)})
+        # Keep source documents for reconciliation and future re-extraction.
         return redirect("review_next", batch_id=batch.id)
 
-    return render(request, "transactions/import.html")
+    pending_batches = (
+        ImportBatch.objects.filter(user=request.user)
+        .annotate(pending_count=Count("staged_transactions", filter=Q(staged_transactions__status="pending")))
+        .filter(pending_count__gt=0)
+        .order_by("-created_at")
+    )
+    return render(request, "transactions/import.html", {"pending_batches": pending_batches})
 
 
 @login_required
@@ -293,6 +298,7 @@ def review_next(request: HttpRequest, batch_id: int) -> HttpResponse:
             staged.classification = get_classification(
                 staged.movement_type.name if staged.movement_type else "",
                 staged.amount,
+                staged.description,
             )
             staged.save()
             if action == "save_all":
@@ -357,7 +363,7 @@ def manual_transaction(request: HttpRequest) -> HttpResponse:
             amount=amount,
             currency=request.POST.get("currency", "") or "",
             movement_type=movement_type,
-            classification=request.POST.get("classification") or get_classification(movement_type.name if movement_type else "", amount),
+            classification=request.POST.get("classification") or get_classification(movement_type.name if movement_type else "", amount, request.POST.get("description", "")),
             reference=request.POST.get("reference", "") or "",
             merchant=request.POST.get("merchant", "") or "",
             location=request.POST.get("location", "") or "",
@@ -396,7 +402,7 @@ def edit_transaction(request: HttpRequest, pk: int) -> HttpResponse:
         tx.amount = _parse_decimal(request.POST.get("amount")) or Decimal("0.00")
         tx.currency = request.POST.get("currency", "") or ""
         tx.movement_type = movement_type
-        tx.classification = request.POST.get("classification") or get_classification(movement_type.name if movement_type else "", tx.amount)
+        tx.classification = request.POST.get("classification") or get_classification(movement_type.name if movement_type else "", tx.amount, request.POST.get("description", ""))
         tx.reference = request.POST.get("reference", "") or ""
         tx.merchant = request.POST.get("merchant", "") or ""
         tx.location = request.POST.get("location", "") or ""
@@ -417,6 +423,18 @@ def edit_transaction(request: HttpRequest, pk: int) -> HttpResponse:
             "title": _("Edit Transaction"),
         },
     )
+
+
+@login_required
+def transaction_source(request: HttpRequest, pk: int) -> HttpResponse:
+    tx = get_object_or_404(Transaction, pk=pk, user=request.user)
+    root = (Path(settings.MEDIA_ROOT) / "pdfs").resolve()
+    path = (root / tx.source_pdf).resolve()
+    if not tx.source_pdf or path.parent != root or not path.is_file():
+        raise Http404("No está disponible el extracto original.")
+    response = FileResponse(path.open("rb"), content_type="application/pdf")
+    response["Cache-Control"] = "private, no-store"
+    return response
 
 
 @login_required

@@ -122,6 +122,11 @@
             <td class="small text-muted">{{ tx.currency }}</td>
             <td class="text-center">
               <div class="d-flex justify-content-center gap-1">
+                {% if tx.source_pdf %}
+                <a href="{% url 'transaction_source' tx.pk %}{% if tx.source_page %}#page={{ tx.source_page }}{% endif %}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary" title="Ver extracto original">
+                  <i class="fa-solid fa-file-pdf"></i>
+                </a>
+                {% endif %}
                 <a href="{% url 'edit_transaction' tx.pk %}" class="btn btn-sm btn-outline-primary"
                   title="{% trans 'Edit' %}">
                   <i class="fa-solid fa-pen-to-square"></i>

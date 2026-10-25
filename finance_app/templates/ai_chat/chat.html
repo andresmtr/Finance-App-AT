@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-lg border-0 rounded-4">
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-3">
+                    <h5 class="mb-0"><i class="fa-solid fa-robot me-2"></i> {% trans "AI Financial Assistant" %}</h5>
+                    <div class="d-flex gap-2">
+                        <select id="chat-model" class="form-select form-select-sm" style="width: auto; background-color: #2b3035; color: white; border: 1px solid #444;">
+                            {% for option in chat_model_options %}
+                                <option value="{{ option.value }}">{{ option.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="card-body bg-light" id="chat-container" style="height: 400px; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem; padding: 1.5rem;">
+                    <div class="chat-message ai-message bg-white p-3 rounded-3 shadow-sm border" style="max-width: 80%; align-self: flex-start;">
+                        {% trans "Hola! Soy tu asistente financiero. ¿En qué puedo ayudarte hoy?" %}
+                    </div>
+                </div>
+                <div class="card-footer bg-white border-top-0 p-3">
+                    <form id="chat-form" class="d-flex gap-2">
+                        {% csrf_token %}
+                        <input type="text" id="user-input" class="form-control rounded-pill px-4 py-2 border-2" placeholder="{% trans 'Pregúntame algo sobre tus gastos...' %}" autocomplete="off">
+                        <button type="submit" class="btn btn-primary rounded-circle shadow-sm d-flex align-items-center justify-content-center" style="width: 45px; height: 45px;">
+                            <i class="fa-solid fa-paper-plane"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    #chat-container::-webkit-scrollbar {
+        width: 6px;
+    }
+    #chat-container::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    #chat-container::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 10px;
+    }
+    #chat-container::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+    }
+    .ai-message {
+        border-bottom-left-radius: 2px !important;
+    }
+    .user-message {
+        border-bottom-right-radius: 2px !important;
+    }
+    .chat-message {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+    }
+    .verification-panel {
+        font-size: 0.8rem;
+    }
+    .verification-panel pre {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        margin: 0.5rem 0 0;
+    }
+    .typing-indicator span {
+        height: 8px;
+        width: 8px;
+        background: #94a3b8;
+        display: inline-block;
+        border-radius: 50%;
+        margin: 0 2px;
+        animation: bounce 1.3s linear infinite;
+    }
+    .typing-indicator span:nth-child(2) { animation-delay: -1.1s; }
+    .typing-indicator span:nth-child(3) { animation-delay: -0.9s; }
+    @keyframes bounce {
+        0%, 60%, 100% { transform: translateY(0); }
+        30% { transform: translateY(-4px); }
+    }
+</style>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const chatForm = document.getElementById('chat-form');
+    const userInput = document.getElementById('user-input');
+    const chatContainer = document.getElementById('chat-container');
+    const chatModel = document.getElementById('chat-model');
+    const submitButton = chatForm.querySelector('button[type="submit"]');
+
+    function addMessage(text, isUser = false, verification = null) {
+        const div = document.createElement('div');
+        div.className = isUser 
+            ? 'chat-message user-message bg-primary text-white p-3 rounded-3 shadow-sm ms-auto' 
+            : 'chat-message ai-message bg-white p-3 rounded-3 shadow-sm border';
+        div.style.maxWidth = '80%';
+        div.style.alignSelf = isUser ? 'flex-end' : 'flex-start';
+        div.textContent = text;
+
+        if (verification) {
+            const details = document.createElement('details');
+            details.className = 'verification-panel mt-2 text-muted';
+
+            const summary = document.createElement('summary');
+            summary.textContent = 'Verificacion';
+            details.appendChild(summary);
+
+            const pre = document.createElement('pre');
+            pre.textContent = verification;
+            details.appendChild(pre);
+            div.appendChild(details);
+        }
+
+        chatContainer.appendChild(div);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    function addTypingIndicator() {
+        const div = document.createElement('div');
+        div.id = 'typing-indicator';
+        div.className = 'ai-message bg-white p-3 rounded-3 shadow-sm border typing-indicator';
+        div.style.alignSelf = 'flex-start';
+        div.innerHTML = '<span></span><span></span><span></span>';
+        chatContainer.appendChild(div);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    function removeTypingIndicator() {
+        const indicator = document.getElementById('typing-indicator');
+        if (indicator) indicator.remove();
+    }
+
+    chatForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const text = userInput.value.trim();
+        if (!text) return;
+
+        addMessage(text, true);
+        userInput.value = '';
+        addTypingIndicator();
+        submitButton.disabled = true;
+        userInput.disabled = true;
+
+        try {
+            const response = await fetch('{% url "ai_chat:ask_ai" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': chatForm.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: JSON.stringify({
+                    query: text,
+                    model: chatModel.value
+                })
+            });
+
+            const contentType = response.headers.get('content-type') || '';
+            const data = contentType.includes('application/json')
+                ? await response.json()
+                : { error: await response.text() };
+            removeTypingIndicator();
+
+            if (!response.ok || data.error) {
+                addMessage('Error: ' + data.error);
+            } else {
+                const verification = [
+                    data.requested_model ? `Modelo solicitado:\n${data.requested_model}` : '',
+                    data.model_used ? `Modelo usado:\n${data.model_used}` : '',
+                    data.model_warning ? `Aviso:\n${data.model_warning}` : '',
+                    data.intent ? `Intencion:\n${data.intent}` : '',
+                    data.row_count !== undefined ? `Filas leidas: ${data.row_count}${data.truncated ? ' (limitadas a 100)' : ''}` : '',
+                    data.payload ? `Datos usados:\n${JSON.stringify(data.payload, null, 2)}` : ''
+                ].filter(Boolean).join('\n\n');
+                addMessage(data.summary, false, verification);
+                console.log('Consulta local:', data);
+            }
+        } catch (err) {
+            removeTypingIndicator();
+            addMessage('Error de conexión.');
+        } finally {
+            submitButton.disabled = false;
+            userInput.disabled = false;
+            userInput.focus();
+        }
+    });
+</script>
+{% endblock %}

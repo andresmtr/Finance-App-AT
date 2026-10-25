@@ -26,7 +26,7 @@
     <div class="mb-4">
       <label class="form-label fw-bold">{% trans "Extraction Method" %}</label>
       <select class="form-select" name="extraction_method">
-        <option value="auto">{% trans "Auto (Local Model with Gemini/OpenAI Fallback)" %}</option>
+        <option value="auto">Automático (texto validado y OpenAI para escaneos)</option>
         <option value="gemini">{% trans "Gemini AI Only (Requires API Key)" %}</option>
         <option value="openai">{% trans "OpenAI API Only (Requires API Key)" %}</option>
         <option value="local">{% trans "Local Model Only" %}</option>
@@ -36,4 +36,18 @@
     <button class="btn btn-primary" type="submit">{% trans "Process and review" %}</button>
     <a class="btn btn-outline-secondary ms-2" href="/transactions/manual/">{% trans "Manual Entry" %}</a>
   </form>
+  {% if pending_batches %}
+  <section class="card p-4 mt-4">
+    <h2 class="h5">Importaciones pendientes de revisión</h2>
+    <p>Estos movimientos todavía no están incluidos en los totales.</p>
+    <div class="list-group">
+      {% for batch in pending_batches %}
+      <a class="list-group-item list-group-item-action d-flex justify-content-between" href="{% url 'review_next' batch.pk %}">
+        <span>{{ batch.source_label }}</span>
+        <span class="badge bg-secondary">{{ batch.pending_count }}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
 {% endblock %}

@@ -8,7 +8,7 @@ from typing import Iterable, List
 
 from django.db import transaction
 
-from finance_app.core.services.pdf_parser import parse_pdf_file
+from finance_app.core.services.classification import get_classification
 from finance_app.transactions.models import ImportBatch, MovementType, StagedTransaction, Transaction
 
 
@@ -66,34 +66,21 @@ def _movement_type_map() -> dict[str, MovementType]:
     return {mt.name: mt for mt in MovementType.objects.filter(is_active=True)}
 
 
-def get_classification(movement_name: str, amount=None) -> str:
-    name = (movement_name or "").strip().lower()
-    if "cdt" in name:
-        return "cdt"
-    if "bolsillo" in name:
-        return "bolsillo"
-
-    parsed_amount = _to_decimal(amount)
-    if parsed_amount is not None:
-        if parsed_amount > 0:
-            return "ingreso"
-        if parsed_amount < 0:
-            return "gasto"
-    return "gasto"
-
-
 def stage_pdf_files(user, pdf_paths: Iterable[Path], passwords: List[str] | None = None, extraction_method: str = "auto") -> ImportBatch:
-    batch = ImportBatch.objects.create(user=user, source_label="PDF")
+    from finance_app.core.services.pdf_parser import parse_pdf_file
+
     type_map = _movement_type_map()
     staged_rows = []
 
     for pdf_path in pdf_paths:
         txs, dbg_list = parse_pdf_file(str(pdf_path), passwords=passwords or [], extraction_method=extraction_method)
+        if not txs:
+            raise ValueError(f"No se pudieron extraer movimientos de {pdf_path.name}. Revisa el PDF, la contraseña y el proveedor seleccionado.")
         for row in txs:
             movement_name = row.get("movement_type") or ""
             amount = _to_decimal(row.get("amount"))
             if amount is None:
-                continue
+                raise ValueError(f"Importe inválido en {pdf_path.name}; no se importó el lote.")
 
             external_id = row.get("external_id") or row.get("id") or ""
             
@@ -106,7 +93,6 @@ def stage_pdf_files(user, pdf_paths: Iterable[Path], passwords: List[str] | None
             staged_rows.append(
                 StagedTransaction(
                     user=user,
-                    batch=batch,
                     bank=row.get("bank", "") or "",
                     account_last4=row.get("account_last4", "") or "",
                     date=_to_date(row.get("date")),
@@ -123,17 +109,26 @@ def stage_pdf_files(user, pdf_paths: Iterable[Path], passwords: List[str] | None
                     source_pdf=row.get("source_pdf", "") or "",
                     source_page=row.get("source_page", None),
                     source_table=row.get("source_table", None),
-                    classification=get_classification(movement_name, amount),
+                    classification=get_classification(movement_name, amount, row.get("description", "")),
                 )
             )
 
-    if staged_rows:
-        StagedTransaction.objects.bulk_create(staged_rows, batch_size=200)
+    with transaction.atomic():
+        batch = ImportBatch.objects.create(user=user, source_label="PDF")
+        for staged in staged_rows:
+            staged.batch = batch
+        if staged_rows:
+            StagedTransaction.objects.bulk_create(staged_rows, batch_size=200)
     return batch
 
 
 @transaction.atomic
 def approve_staged_transaction(staged: StagedTransaction) -> Transaction:
+    staged = StagedTransaction.objects.select_for_update().get(pk=staged.pk)
+    if staged.status != StagedTransaction.STATUS_PENDING:
+        raise ValueError("Este movimiento ya fue revisado.")
+    if staged.amount is None or staged.date is None:
+        raise ValueError("El movimiento necesita una fecha y un importe válidos.")
     tx = Transaction.objects.create(
         user=staged.user,
         bank=staged.bank,

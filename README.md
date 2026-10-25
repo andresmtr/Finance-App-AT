@@ -36,6 +36,8 @@ ALLOWED_HOSTS=*
 PDF_DEBUG=1
 OPENAI_API_KEY=...
 OPENAI_CHAT_MODEL=gpt-4o-mini
+GEMINI_API_KEY=...
+GEMINI_CHAT_MODEL=gemini-3-flash-preview
 TELEGRAM_BOT_TOKEN=...
 TELEGRAM_ALLOWED_CHAT_IDS=793260423
 TELEGRAM_DEFAULT_USER_ID=1
@@ -91,3 +93,13 @@ python manage.py migrate
 python manage.py createsuperuser
 python manage.py runserver
 ```
+
+
+### Extracción y conciliación de extractos
+
+- `OPENAI_PDF_MODEL=gpt-6-luna` configura el modelo de PDF independientemente del chat.
+- El modo automático intenta leer texto nativo y comprobar los saldos. Si no puede validarlo, utiliza OpenAI cuando hay una clave configurada. La extracción procesa todas las páginas con salida JSON estructurada; las secciones de tarjetas están excluidas.
+- Los PDF originales se conservan en `uploads/pdfs/`. El botón de PDF en cada movimiento requiere autenticación y comprueba su propietario.
+- Los intereses de CDT son ingresos separados del capital. Los traslados entre cuenta y bolsillos, incluidos sus rendimientos ya abonados, no afectan al ingreso ni al gasto operativo.
+- `python manage.py audit_finances` genera un informe privado en `data/audits/`. `--apply` guarda una copia de SQLite antes de corregir agrupaciones inequívocas; no cambia signos ni elimina posibles duplicados.
+- Las importaciones pendientes se pueden abrir desde `/imports/`; sus movimientos no afectan los totales hasta aprobarlos.

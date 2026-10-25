@@ -30,7 +30,7 @@ def _apply_filters(
     if movement_type:
         filtered = filtered[filtered["movement_type"] == movement_type]
     if reference:
-        filtered = filtered[filtered["reference"].str.contains(reference, case=False, na=False)]
+        filtered = filtered[filtered["reference"].str.contains(reference, case=False, na=False, regex=False)]
     return filtered
 
 
@@ -208,7 +208,8 @@ def dashboard(request: HttpRequest) -> HttpResponse:
 
     if not frame.empty:
         indexed = frame.set_index("date_dt").sort_index()
-        net_series = indexed["amount"].resample(freq).sum()
+        operating = indexed[indexed["income_flag"] | indexed["expense_flag"]]
+        net_series = operating["amount"].resample(freq).sum().reindex(indexed["amount"].resample(freq).sum().index, fill_value=0)
         income_series = indexed[indexed["income_flag"]]["amount"].resample(freq).sum()
         expense_series = indexed[indexed["expense_flag"]]["amount"].resample(freq).sum().abs()
         income_series = income_series.reindex(net_series.index, fill_value=0)
@@ -235,7 +236,7 @@ def dashboard(request: HttpRequest) -> HttpResponse:
         # New: Monthly aggregated income vs expense
         monthly_inc = indexed[indexed["income_flag"]]["amount"].resample("ME").sum()
         monthly_exp = indexed[indexed["expense_flag"]]["amount"].resample("ME").sum().abs()
-        monthly_labels_list = net_series.index
+        monthly_labels_list = indexed["amount"].resample("ME").sum().index
         monthly_inc = monthly_inc.reindex(monthly_labels_list, fill_value=0)
         monthly_exp = monthly_exp.reindex(monthly_labels_list, fill_value=0)
         inc_exp_labels = monthly_labels_list.strftime("%b %Y").tolist()
@@ -255,7 +256,7 @@ def dashboard(request: HttpRequest) -> HttpResponse:
         inc_exp_exp_vals = []
 
     monthly_net = (
-        frame.groupby(pd.Grouper(key="date_dt", freq="ME"))["amount"].sum().sort_index()
+        frame[frame["income_flag"] | frame["expense_flag"]].groupby(pd.Grouper(key="date_dt", freq="ME"))["amount"].sum().sort_index()
         if not frame.empty
         else pd.Series()
     )

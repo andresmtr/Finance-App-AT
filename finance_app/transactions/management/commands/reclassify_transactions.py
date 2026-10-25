@@ -49,7 +49,7 @@ class Command(BaseCommand):
 
         for row in queryset.iterator(chunk_size=1000):
             scanned += 1
-            new_classification = get_classification(_movement_name(row), row.amount)
+            new_classification = get_classification(_movement_name(row), row.amount, row.description)
             if row.classification != new_classification:
                 row.classification = new_classification
                 to_update.append(row)

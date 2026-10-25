@@ -165,7 +165,13 @@ def detect_bank_and_last4(text: str) -> Tuple[str, str]:
 # Movement type
 # ===========================
 def classify_movement_type(description: str) -> str:
+    from finance_app.core.services.classification import special_classification
+    special = special_classification(description)
+    if special:
+        return special
     d = _norm(description)
+    if ("cdt" in d) and ("interes" in d or "rendim" in d):
+        return "intereses"
     # The order is critical: evaluate more specific/compound rules FIRST
     rules = [
         ("cdt", ["cdt", "certificado de deposito", "certificado de depósito", "título", "titulo"]),
@@ -795,9 +801,9 @@ def parse_table_image_to_transactions(
         deb = parse_amount_string(debit_raw) if debit_raw else None
         cre = parse_amount_string(credit_raw) if credit_raw else None
 
-        if cre is not None and (deb is None or abs(cre) >= 0.01):
+        if cre is not None and abs(cre) >= 0.01 and (deb is None or abs(deb) < 0.01):
             amount = abs(cre)
-        elif deb is not None and (cre is None or abs(deb) >= 0.01):
+        elif deb is not None and abs(deb) >= 0.01 and (cre is None or abs(cre) < 0.01):
             amount = -abs(deb)
         else:
             amount, _ = parse_amount_and_currency(amt_raw, desc, default_currency=DEFAULT_CURRENCY)
@@ -1008,42 +1014,64 @@ def parse_with_openai(pages: List[Image.Image], bank: str, last4: str, statement
         return [], {"error": f"OpenAI SDK import error: {str(e)}"}
 
     try:
-        model_name = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
-        client = OpenAI(api_key=api_key)
-        prompt = _build_ai_extraction_prompt(bank, last4, statement_year)
+        from datetime import date
+        from decimal import Decimal
 
-        content_payload: List[Dict[str, Any]] = [{"type": "text", "text": prompt}]
-        for page in pages[:15]:
+        model_name = os.getenv("OPENAI_PDF_MODEL") or os.getenv("OPENAI_MODEL", "gpt-6-luna")
+        client = OpenAI(api_key=api_key, timeout=180)
+        prompt = _build_ai_extraction_prompt(bank, last4, statement_year)
+        prompt += """
+Extract only individual posted movements, never summaries, balances, totals or pending items.
+Read debit/credit columns and balance changes before deciding the sign. 'Abono' inside
+an outgoing transfer description does not imply income. Do not guess illegible amounts.
+Preserve full descriptions and references. Portfolio statements may contain several
+accounts, including pockets: return the actual bank and account_last4 for EACH row.
+Exclude ALL credit-card statement sections and credit-card account movements.
+A payment to a credit card posted on a savings/current account IS an outgoing movement.
+Return an object with a transactions array using the required JSON schema.
+"""
+        fields = {
+            key: {"type": "string"} for key in (
+                "date", "time", "description", "reference", "currency", "location",
+                "channel", "bank", "account_last4",
+            )
+        }
+        fields["amount"] = {"type": "number"}
+        schema = {
+            "type": "object", "additionalProperties": False,
+            "properties": {"transactions": {"type": "array", "items": {
+                "type": "object", "additionalProperties": False,
+                "properties": fields, "required": list(fields),
+            }}}, "required": ["transactions"],
+        }
+        data = []
+        # One page per request avoids silently truncating long statements and records provenance.
+        for page_number, page in enumerate(pages, 1):
             buffer = io.BytesIO()
             page.convert("RGB").save(buffer, format="JPEG", quality=90)
             encoded = base64.b64encode(buffer.getvalue()).decode("utf-8")
-            content_payload.append({
-                "type": "image_url",
-                "image_url": {"url": f"data:image/jpeg;base64,{encoded}"},
-            })
-
-        response = client.chat.completions.create(
-            model=model_name,
-            temperature=0,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You extract bank-statement transactions and return strictly valid JSON.",
-                },
-                {
-                    "role": "user",
-                    "content": content_payload,
-                },
-            ],
-        )
-        content = response.choices[0].message.content or ""
-        if isinstance(content, list):
-            content = "".join(
-                part.get("text", "") for part in content if isinstance(part, dict)
+            response = client.responses.create(
+                model=model_name,
+                input=[{"role": "user", "content": [
+                    {"type": "input_text", "text": prompt},
+                    {"type": "input_image", "image_url": f"data:image/jpeg;base64,{encoded}"},
+                ]}],
+                text={"format": {"type": "json_schema", "name": "statement_transactions",
+                                 "strict": True, "schema": schema}},
             )
-        data = _parse_ai_json_list(content)
-        data = _enrich_ai_transactions(data, bank, last4)
-        return data, {"openai_used": True, "pages_sent": min(len(pages), 15), "model": model_name}
+            if response.status != "completed":
+                raise ValueError(f"Incomplete extraction on page {page_number}")
+            rows = json.loads(response.output_text)["transactions"]
+            for row in rows:
+                date.fromisoformat(row["date"])
+                amount = Decimal(str(row["amount"]))
+                if not amount.is_finite() or abs(amount) >= Decimal("1000000000000"):
+                    raise ValueError(f"Invalid amount on page {page_number}")
+                row["source_page"] = page_number
+                row["movement_type"] = classify_movement_type(row["description"])
+                row["id"] = uuid.uuid4().hex
+                data.append(row)
+        return data, {"openai_used": True, "pages_sent": len(pages), "model": model_name}
     except Exception as e:
         return [], {"error": f"OpenAI API error: {str(e)}"}
 
@@ -1064,6 +1092,29 @@ def parse_pdf_file(
     """
     logger.info(f"==== Iniciando extracción de {Path(pdf_path).name} | Método: {extraction_method.upper()} ====")
     passwords = passwords or DEFAULT_PASSWORDS
+
+    # Prefer lossless native text when every movement reconciles with bank balances.
+    if extraction_method == "auto":
+        try:
+            from finance_app.core.services.statement_text import parse_statement_text
+            reader = PdfReader(pdf_path)
+            if reader.is_encrypted:
+                unlocked = any(reader.decrypt(password) for password in [""] + list(passwords))
+                if not unlocked:
+                    raise ValueError("PDF password required")
+            native_pages = [page.extract_text(extraction_mode="layout") or "" for page in reader.pages]
+            native_year = infer_statement_year("\n".join(native_pages))
+            if not native_year:
+                raise ValueError("Statement year unavailable")
+            native_rows = parse_statement_text(native_pages, native_year)
+            if native_rows:
+                for row in native_rows:
+                    row["movement_type"] = classify_movement_type(row["description"])
+                    row["source_pdf"] = Path(pdf_path).name
+                    row["id"] = uuid.uuid4().hex
+                return native_rows, [{"native_text": True, "balance_verified": True, "pages": len(native_pages)}]
+        except Exception as exc:
+            logger.info("Native text unavailable or not reconciled: %s", exc)
 
     pages, used_pw, method = render_pdf_pages(pdf_path, passwords, dpi, max_pages)
     if not pages:
@@ -1117,7 +1168,7 @@ def parse_pdf_file(
         if gemini_txs:
             for tx in gemini_txs:
                 tx["source_pdf"] = Path(pdf_path).name
-                tx["source_page"] = 0
+                tx.setdefault("source_page", 0)
                 tx["source_table"] = 0
             txs.extend(gemini_txs)
             dbg_list.append({
@@ -1131,13 +1182,13 @@ def parse_pdf_file(
             logger.error(f"<- Falló la extracción con Gemini AI: {gemini_dbg}")
         return txs, dbg_list
 
-    if extraction_method == "openai":
+    if extraction_method == "openai" or (extraction_method == "auto" and os.getenv("OPENAI_API_KEY")):
         logger.info("-> Ejecutando extracción DIRECTA vía OpenAI API")
         openai_txs, openai_dbg = parse_with_openai(pages, bank, last4, statement_year)
         if openai_txs:
             for tx in openai_txs:
                 tx["source_pdf"] = Path(pdf_path).name
-                tx["source_page"] = 0
+                tx.setdefault("source_page", 0)
                 tx["source_table"] = 0
             txs.extend(openai_txs)
             dbg_list.append({
@@ -1241,7 +1292,7 @@ def parse_pdf_file(
             if gemini_txs:
                 for tx in gemini_txs:
                     tx["source_pdf"] = Path(pdf_path).name
-                    tx["source_page"] = 0
+                    tx.setdefault("source_page", 0)
                     tx["source_table"] = 0
                 txs.extend(gemini_txs)
                 dbg_list.append({
@@ -1258,7 +1309,7 @@ def parse_pdf_file(
                 if openai_txs:
                     for tx in openai_txs:
                         tx["source_pdf"] = Path(pdf_path).name
-                        tx["source_page"] = 0
+                        tx.setdefault("source_page", 0)
                         tx["source_table"] = 0
                     txs.extend(openai_txs)
                     dbg_list.append({

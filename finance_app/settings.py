@@ -20,6 +20,7 @@ INSTALLED_APPS = [
     "finance_app.core",
     "finance_app.dashboard",
     "finance_app.transactions",
+    "finance_app.ai_chat",
 ]
 
 MIDDLEWARE = [
@@ -61,15 +62,16 @@ DATABASES = {
     }
 }
 
+# Internationalization
 LANGUAGE_CODE = "es"
 LANGUAGES = [
     ("es", "Español"),
     ("en", "English"),
 ]
 TIME_ZONE = "America/Bogota"
-USE_I18N = True
+USE_I18N = False
 USE_TZ = True
-LOCALE_PATHS = [BASE_DIR / "locale"]
+# LOCALE_PATHS = []
 
 STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "finance_app" / "static"]
@@ -92,6 +94,8 @@ SAMBA_PASSWORD = os.getenv("SAMBA_PASSWORD", "")
 SAMBA_REMOTE_PATH = os.getenv("SAMBA_REMOTE_PATH", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_CHAT_MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_CHAT_MODEL = os.getenv("GEMINI_CHAT_MODEL", "gemini-3-flash-preview")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_ALLOWED_CHAT_IDS = [
     chat_id.strip() for chat_id in os.getenv("TELEGRAM_ALLOWED_CHAT_IDS", "").split(",") if chat_id.strip()
