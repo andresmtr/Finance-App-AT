@@ -129,3 +129,8 @@ La sección `/cards/` mantiene los consumos de tarjeta separados de los movimien
 - Después de desplegar código nuevo o restaurar una base anterior, ejecuta `python manage.py migrate --noinput`. Las migraciones de tarjetas crean las tablas nuevas sin reemplazar los movimientos de cuentas.
 
 Para importaciones masivas locales: `python manage.py import_card_statements --manifest ruta_privada.json --user-id ID`. La contraseña se lee de `CARD_PDF_PASSWORD`; no se almacena en el manifiesto ni en los informes. `--refresh` vuelve a leer los períodos existentes, conserva las clasificaciones y cruces de movimientos que no cambian, y retira los cruces de filas corregidas.
+
+
+Las reglas de consumo agrupan droguerías/farmacias en **Salud**, OXXO en **Supermercados**, facturas de agua, luz, gas, celular, planes de datos e internet en **Servicios públicos**, y compras del hogar en **Gastos de casa**. `python manage.py categorize_card_expenses --apply` actualiza únicamente esas coincidencias y guarda un respaldo previo. Los pagos de crédito hipotecario se muestran en el bloque de vivienda y en su propia hoja del Excel, conservando los importes ya registrados en las cuentas. Para identificar préstamos cuyo extracto solo dice “Cuota Cartera”, configura `HOUSING_CREDIT_LAST4` con los créditos confirmados como vivienda. Esa identificación permanece en `.env`, fuera de Git.
+
+La categoría **Educación** reconoce GIMNASIO MODERNO CASTILLA (incluido el nombre truncado CASTIL), UNAD, Preply y Udemy, también cuando el cargo aparece a través de PayPal. Los pagos directos desde cuentas se muestran por separado en el bloque de Educación y en la hoja `Educacion cuentas` del Excel. Los intereses y comisiones de las tarjetas conservan su categoría financiera.

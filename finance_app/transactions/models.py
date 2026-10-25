@@ -171,11 +171,11 @@ class CardMovement(models.Model):
     KINDS = [("purchase", "Compra"), ("refund", "Devolución"), ("payment", "Pago de tarjeta"),
              ("interest", "Intereses"), ("fee", "Comisión / cuota"), ("tax", "Impuesto"),
              ("advance", "Avance"), ("adjustment", "Ajuste")]
-    CATEGORIES = [("restaurantes", "Restaurantes"), ("mercado", "Mercado y supermercado"),
+    CATEGORIES = [("restaurantes", "Restaurantes"), ("mercado", "Supermercados"),
                   ("compras", "Compras"), ("tecnologia", "Tecnología y suscripciones"),
                   ("transporte", "Transporte y combustible"), ("viajes", "Viajes y alojamiento"),
-                  ("salud", "Salud"), ("entretenimiento", "Entretenimiento"),
-                  ("servicios", "Servicios"), ("financieros", "Costos financieros"),
+                  ("salud", "Salud"), ("educacion", "Educación"), ("entretenimiento", "Entretenimiento"),
+                  ("hogar", "Gastos de casa"), ("servicios", "Servicios públicos"), ("financieros", "Costos financieros"),
                   ("otros", "Otros / por clasificar")]
     card = models.ForeignKey(CreditCard, on_delete=models.CASCADE, related_name="movements")
     date = models.DateField()

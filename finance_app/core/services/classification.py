@@ -1,10 +1,24 @@
 """Classification uses the description for purpose and the signed amount for direction."""
 import re
+import os
 import unicodedata
 from decimal import Decimal
 from datetime import date
 
 EARNED_INCOME_TYPE = "pago de salarios u honorarios"
+
+
+def is_education_payment(description):
+    text=normalize(description)
+    return bool(re.search(r'\b(?:unad|preply|udemy)\b|\bgimnasio moderno castil(?:la|l)?\b',text))
+
+
+def is_housing_loan(description):
+    text=normalize(description)
+    if re.search(r'\bcredito (?:de |para )?vivienda\b|\bcredito hipotecario\b|\bprestamo hipotecario\b|\bcuota hipotecaria\b|\bleasing habitacional\b|\bpago.*hipoteca\b',text):
+        return True
+    configured=[value.strip() for value in os.getenv('HOUSING_CREDIT_LAST4','').split(',') if len(value.strip())==4 and value.strip().isdigit()]
+    return bool(re.search(r'\bpago cuota cartera\b',text) and any(re.search(r'\b'+re.escape(last4)+r'\b',text) for last4 in configured))
 
 
 def movement_override(description, amount=None, income_keywords=(), transaction_date=None):
@@ -19,6 +33,10 @@ def movement_override(description, amount=None, income_keywords=(), transaction_
     except (ValueError, ArithmeticError):
         return None
     if value < 0:
+        if is_education_payment(description) and not re.search(r'pago.*tarj',text):
+            return "educación"
+        if is_housing_loan(description):
+            return "credito de vivienda"
         # 'Recaudo' on a direct debit is a payment, despite the old generic abono rule.
         if re.search(r"\b(cargo|debito|descuento|dcto)\b", text) and "recaudo" in text:
             return "pago"

@@ -10,7 +10,7 @@ from pathlib import Path
 from django.conf import settings
 from django.db import transaction
 
-from finance_app.core.services.classification import normalize
+from finance_app.core.services.classification import normalize,is_housing_loan,is_education_payment
 from finance_app.transactions.models import CardMovement, CardStatement, CardStatementLine, CreditCard
 
 ZERO = Decimal('0.00')
@@ -29,10 +29,36 @@ def compact_date(text):
     return date(year, MONTHS[m[2].lower()], int(m[1]))
 
 
+def household_category(description, kind='purchase'):
+    """Owner-requested rules take precedence over broad commerce/processor labels."""
+    if kind not in {'purchase', 'refund'}:
+        return None
+    text=normalize(description)
+    if is_education_payment(description):
+        return 'educacion'
+    if re.search(r'\b(?:droguerias?|drogarias?|drogas|drog|farmacias?|farmatodo|farma)\b',text):
+        return 'salud'
+    if re.search(r'\boxxo(?:\b|\d)',text):
+        return 'mercado'
+    if is_housing_loan(description):
+        return 'hogar'
+    if re.search(r'\b(?:homecenter|homesentry|ikea|tugo|ferreterias?|muebles|colchones|menaje|electrodomesticos|arriendo)\b|home sentry|gastos? (?:de (?:la )?)?casa|articulos (?:de|para el) hogar|decoracion|credito (?:de |para )?vivienda|credito hipotecario|prestamo hipotecario|cuota hipotecaria|leasing habitacional|pago.*hipoteca|administracion (?:de )?(?:conjunto|edificio|vivienda)',text):
+        return 'hogar'
+    provider=re.search(r'\b(?:comcel|telmex|movistar|claro|tigo|wom|etb|enel|codensa|vanti|eaab|acueducto|alcantarillado)\b',text)
+    utility=re.search(r'servicios? publicos?|gas natural|energia electrica|telefonia|plan(?:es)? de datos|paquete(?:s)? de datos|datos moviles|recarga.*(?:celular|datos)|pago.*celular',text)
+    internet='internet' in text and not re.search(r'transferencia|\bach\b|comision|servilinea|banca movil',text)
+    if provider or utility or internet:
+        return 'servicios'
+    return None
+
+
 def merchant_category(description, kind='purchase'):
     text=normalize(description)
     if kind in {'interest','fee','tax'}:return 'Costos financieros','financieros'
     if kind=='payment':return 'Pago de tarjeta','financieros'
+    category=household_category(description,kind)
+    if category:
+        return description.strip()[:255],category
     rules=[
         ('Apple','tecnologia',r'apple\.com|itunes|apple store'),
         ('Mercado Libre','compras',r'mercado\s*libre|mercadolibre|meli\*'),

@@ -15,6 +15,39 @@ from finance_app.transactions.services.card_reconciliation import allocate_payme
 
 
 class CardParserTests(SimpleTestCase):
+    def test_education_institutions_and_platforms_are_not_general_shopping(self):
+        from finance_app.core.services.classification import refine_movement_type
+        for text in ['GIMNASIO MODERNO CASTILLA','Compra GIMNASIO MODERNO CASTIL','UNAD','PAYPAL *PREPLY INC','PAYPAL *UDEMY']:
+            with self.subTest(description=text):
+                self.assertEqual(merchant_category(text)[1],'educacion')
+                self.assertEqual(refine_movement_type(text,-100,'compra'),'educación')
+        self.assertEqual(merchant_category('Intereses PAYPAL *PREPLY INC','interest')[1],'financieros')
+        self.assertEqual(merchant_category('UNADERA TIENDA')[1],'otros')
+        self.assertEqual(refine_movement_type('Pago Tarjeta UNAD',-100,'pago tarjeta credito'),'pago tarjeta credito')
+
+    def test_pharmacies_oxxo_household_and_utilities_rules(self):
+        cases=[('DROGUERÍA ALHAMBRA','salud'),('DROG STA ROSA SUC PONTEVEDRA','salud'),
+               ('DROGARIA VENANCIO','salud'),('FARMA FUTURO','salud'),('OXXO AVENIDA CONSTITUCION','mercado'),
+               ('COMCEL PAGOS DE FACTURAS MOVIL','servicios'),('Pago CLARO TELMEX HOGARES','servicios'),
+               ('EPML DE INTERNET2333280','servicios'),('Pago plan de datos celular','servicios'),
+               ('EAAB ACUEDUCTO','servicios'),('VANTI GAS NATURAL','servicios'),
+               ('HOMECENTER CEDRITOS','hogar'),('Pago crédito hipotecario','hogar'),
+               ('Pago credito de vivienda','hogar'),('Leasing habitacional','hogar')]
+        cases.append(('Pago credito hipotecario por internet','hogar'))
+        for description,expected in cases:
+            with self.subTest(description=description):self.assertEqual(merchant_category(description)[1],expected)
+        self.assertEqual(merchant_category('Cargo Transferencia ACH por INTERNET')[1],'otros')
+        self.assertEqual(merchant_category('PAGO TARJETA DE CREDITO','payment')[1],'financieros')
+
+    @patch.dict("os.environ", {"HOUSING_CREDIT_LAST4": "6995"})
+    def test_housing_loan_rule_only_marks_confirmed_credit_and_outflows(self):
+        from finance_app.core.services.classification import refine_movement_type
+        desc='Pago Cuota Cartera por Internet/Servilinea/Banca Movil 6995 Banca Movil'
+        self.assertEqual(refine_movement_type(desc,-100,'pago'),'credito de vivienda')
+        self.assertEqual(refine_movement_type(desc.replace('6995','1234'),-100,'pago'),'pago')
+        self.assertEqual(refine_movement_type(desc,100,'abono'),'abono')
+        self.assertEqual(refine_movement_type('Pago credito hipotecario',-100,'pago'),'credito de vivienda')
+
     def test_old_card_uses_original_purchase_even_when_already_paid(self):
         text='''Tarjeta de Crédito # 1111 2222 3333 1234
 Banco Davivienda
@@ -174,7 +207,7 @@ class CardLedgerTests(TestCase):
         self.assertEqual(book['Consumos']['E2'].value,'=1+1')
         self.assertEqual(book['Consumos']['E2'].data_type,'s')
         self.assertEqual(book['Consumos']['I2'].value,100)
-        self.assertEqual(len(book.sheetnames),8)
+        self.assertEqual(len(book.sheetnames),10)
         self.client.force_login(self.other)
         book=load_workbook(BytesIO(self.client.get('/cards/?export=1').content))
         self.assertEqual(book['Consumos'].max_row,1)
@@ -207,3 +240,26 @@ class CardLedgerTests(TestCase):
         self.assertEqual(expense.category,'tecnologia')
         self.assertEqual(expense.merchant,'Apple')
         self.assertTrue(expense.manually_classified)
+
+    def test_housing_payments_are_visible_without_counting_them_as_card_purchases(self):
+        category=MovementType.objects.get_or_create(name='credito de vivienda')[0]
+        Transaction.objects.create(user=self.user,date=date(2026,1,2),amount=-100,currency='COP',classification='gasto',description='Pago credito de vivienda',movement_type=category)
+        response=self.client.get('/cards/?category=hogar&month=2026-01')
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(response.context['housing_paid_total'],100)
+        self.assertEqual(response.context['purchase_total'],0)
+        book=load_workbook(BytesIO(self.client.get('/cards/?category=hogar&month=2026-01&export=1').content))
+        self.assertEqual(book['Credito vivienda'].max_row,2)
+        self.assertEqual(book['Consumos'].max_row,1)
+
+    def test_education_from_cards_and_accounts_is_filtered_and_exported(self):
+        category=MovementType.objects.get_or_create(name='educación')[0]
+        Transaction.objects.create(user=self.user,date=date(2026,1,2),amount=-100,currency='COP',classification='gasto',description='Compra GIMNASIO MODERNO CASTIL',movement_type=category)
+        CardMovement.objects.create(card=self.card,date=date(2026,1,3),amount=50,kind='purchase',description='UNAD',category='educacion',fingerprint='edu')
+        response=self.client.get('/cards/?category=educacion&month=2026-01')
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(response.context['education_paid_total'],100)
+        self.assertEqual(response.context['purchase_total'],50)
+        book=load_workbook(BytesIO(self.client.get('/cards/?category=educacion&month=2026-01&export=1').content))
+        self.assertEqual(book['Educacion cuentas'].max_row,2)
+        self.assertEqual(book['Consumos']['G2'].value,'Educación')

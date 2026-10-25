@@ -53,6 +53,14 @@ def cards(request):
     category=request.GET.get('category','');merchant=request.GET.get('merchant','').strip()
     if category:expense=expense.filter(category=category)
     if merchant:expense=expense.filter(merchant__icontains=merchant)
+    housing_payments=Transaction.objects.filter(user=request.user,classification='gasto',amount__lt=0,currency=currency,movement_type__name='credito de vivienda').order_by('-date','-pk')
+    if start:housing_payments=housing_payments.filter(date__gte=start,date__lt=end)
+    if selected or (category and category!='hogar'):housing_payments=housing_payments.none()
+    if merchant:housing_payments=housing_payments.filter(description__icontains=merchant)
+    education_payments=Transaction.objects.filter(user=request.user,classification='gasto',amount__lt=0,currency=currency,movement_type__name='educación').order_by('-date','-pk')
+    if start:education_payments=education_payments.filter(date__gte=start,date__lt=end)
+    if selected or (category and category!='educacion'):education_payments=education_payments.none()
+    if merchant:education_payments=education_payments.filter(description__icontains=merchant)
     if request.GET.get('export')=='1':
         from finance_app.transactions.services.exports import workbook_response
         allocations=CardPaymentAllocation.objects.filter(bank_transaction__user=request.user).filter(
@@ -73,6 +81,10 @@ def cards(request):
              [(st.pk,str(st.card),st.period_start,st.period_end,st.currency,st.opening_balance,st.closing_balance,st.purchases_total,st.payments_total,st.reviewed,'; '.join(st.validation_notes)) for st in statements]),
             ('Detalle extractos',['extracto_id','movimiento_id','fecha_compra','valor_original','valor_a_pagar','saldo_pendiente','cuota','cuotas','pagina_pdf'],
              [(line.statement_id,line.movement_id,line.movement.date,line.movement.amount,line.billed_amount,line.remaining_balance,line.installment,line.installments,line.source_page) for line in CardStatementLine.objects.filter(statement__in=statements).select_related('movement').order_by('statement_id','pk')]),
+            ('Credito vivienda',['id','fecha_pago','banco','cuenta','descripcion','pago','moneda','categoria'],
+             [(tx.pk,tx.date,tx.bank,tx.account_last4,tx.description,abs(tx.amount),tx.currency,'Gastos de casa') for tx in housing_payments]),
+            ('Educacion cuentas',['id','fecha_pago','banco','cuenta','descripcion','pago','moneda','categoria'],
+             [(tx.pk,tx.date,tx.bank,tx.account_last4,tx.description,abs(tx.amount),tx.currency,'Educación') for tx in education_payments]),
             ('Alcance',['campo','valor'], [('mes',month or 'Todos'),('moneda',currency),('tarjeta',selected or 'Todas'),('categoria',category or 'Todas'),('comercio',merchant or 'Todos'),('consumos','Filtrados por fecha de compra; valor original sin repetir cuotas'),('extractos','Filtrados por fecha de corte; detalle completo del extracto'),('conciliaciones','Incluye los cruces de pagos o abonos seleccionados, aunque su contraparte sea de otro mes')]),
         ]
         return workbook_response(sheets,'tarjetas_y_conciliaciones.xlsx')
@@ -115,6 +127,8 @@ def cards(request):
             if tx.remaining:expense_banks.append(tx)
     expense_allocations=CardExpenseAllocation.objects.filter(bank_transaction__user=request.user).select_related('bank_transaction','card_expense__card').order_by('-created_at')[:50]
     context={
+        'education_payments':education_payments[:100],'education_paid_total':abs(_sum(education_payments)),
+        'housing_payments':housing_payments[:100],'housing_paid_total':abs(_sum(housing_payments)),
         'expense_choices':expense_choices,'expense_banks':expense_banks,'expense_allocations':expense_allocations,
         'cards':cards,'selected_card':selected,'month':month,'currency':currency,'category':category,'merchant':merchant,
         'expense_total':_sum(expense),'purchase_total':_sum(expense.filter(kind='purchase')),
