@@ -8,7 +8,7 @@ from typing import Iterable, List
 
 from django.db import transaction
 
-from finance_app.core.services.classification import get_classification
+from finance_app.core.services.classification import EARNED_INCOME_TYPE, get_classification, refine_movement_type
 from finance_app.transactions.models import ImportBatch, MovementType, StagedTransaction, Transaction
 
 
@@ -70,6 +70,8 @@ def stage_pdf_files(user, pdf_paths: Iterable[Path], passwords: List[str] | None
     from finance_app.core.services.pdf_parser import parse_pdf_file
 
     type_map = _movement_type_map()
+    income_type = type_map.get(EARNED_INCOME_TYPE)
+    income_keywords = income_type.keywords if income_type else []
     staged_rows = []
 
     for pdf_path in pdf_paths:
@@ -82,6 +84,7 @@ def stage_pdf_files(user, pdf_paths: Iterable[Path], passwords: List[str] | None
             if amount is None:
                 raise ValueError(f"Importe inválido en {pdf_path.name}; no se importó el lote.")
 
+            movement_name = refine_movement_type(row.get("description", ""), amount, movement_name, income_keywords, row.get("date"))
             external_id = row.get("external_id") or row.get("id") or ""
             
             # Lazily create missing movement types

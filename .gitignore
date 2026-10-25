@@ -1,29 +1,46 @@
+# Local credentials
 .env
+.env.*
+!.env.example
+
+# Private financial data and generated reports
+/data/
+/uploads/
+/backups/
+/exports/
+/logs/
+*.sqlite
+*.sqlite3
+*.sqlite.*
+*.sqlite3.*
+*.sqlite-*
+*.sqlite3-*
+*.db
+*.db.*
+*.db-*
+*.bak
+*.backup
+*.sql
+*.[pP][dD][fF]
+*.csv
+*.xls
+*.xlsx
+*.log
+
+# Notebooks can embed financial records and passwords
+*.ipynb
+.ipynb_checkpoints/
+
+# Python and local environments
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-*.sqlite3
-/db.sqlite3
-/data/
-.DS_Store
-.env
-__pycache__/
-*.pyc
-
-# Virtual environments
 venv/
 .venv/
 env/
 ENV/
-
-# Pip / build
 *.egg-info/
 dist/
 build/
-
-# Jupyter
-.ipynb_checkpoints/
-
-# pdf
-*.pdf
+.DS_Store

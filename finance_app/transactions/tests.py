@@ -15,6 +15,51 @@ from finance_app.transactions.models import ImportBatch, MovementType, StagedTra
 
 
 class ClassificationTests(SimpleTestCase):
+    def test_confirmed_employer_and_oim_cutoff(self):
+        from finance_app.core.services.classification import OIM_FEES_TYPE, SALARY_TYPE, refine_movement_type
+        cases = [
+            ("Abono Engineer Systems Corp Sas", 100, "2026-01-01", SALARY_TYPE),
+            ("Transferencia BOGOTA 9009495364", 100, "2019-01-01", SALARY_TYPE),
+            ("Abono Bco CITIBANK", 100, "2021-12-31", OIM_FEES_TYPE),
+            ("Abono Cta CIBAN 000000801055528", 100, date(2021, 5, 6), OIM_FEES_TYPE),
+            ("Abono Bco CITIBANK", 100, "2022-01-01", "transferencia"),
+            ("Transferencia CITIBANK", 100, None, "transferencia"),
+            ("Transferencia CITIBANK", -100, "2021-12-31", "transferencia"),
+            ("Transferencia Engineer Systems Corp Sas", -100, "2026-01-01", "transferencia"),
+            ("Reembolso Engineer Systems Corp Sas", 100, "2026-01-01", "transferencia"),
+        ]
+        for text, amount, posted, expected in cases:
+            with self.subTest(text=text, date=posted):
+                self.assertEqual(refine_movement_type(text, amount, "transferencia", transaction_date=posted), expected)
+
+    def test_salary_and_fees_require_incoming_work_payment(self):
+        from finance_app.core.services.classification import EARNED_INCOME_TYPE, refine_movement_type
+        cases = [
+            ("Transferencia OCCIDENTE PAGO NOMINA ABRIL", 100, "transferencia", EARNED_INCOME_TYPE),
+            ("Transferencia OCCIDENTE Contratista", 100, "transferencia", EARNED_INCOME_TYPE),
+            ("Abono honorarios", 100, "abono", EARNED_INCOME_TYPE),
+            ("LIQ CONTRATO DE TRABAJO", 100, "transferencia", EARNED_INCOME_TYPE),
+            ("PAGO PRIMA DICIEMBRE", 100, "transferencia", EARNED_INCOME_TYPE),
+            ("Cargo por Recaudo con Debito Automatico", -20000, "abono", "pago"),
+            ("Pago nomina", -100, "transferencia", "transferencia"),
+            ("Abono Bco CITIBANK", 100, "abono", "abono"),
+            ("Transferencia de un familiar", 100, "transferencia", "transferencia"),
+        ]
+        for description, amount, current, expected in cases:
+            with self.subTest(description=description):
+                self.assertEqual(refine_movement_type(description, amount, current), expected)
+
+    def test_confirmed_payers_do_not_override_refunds_interest_or_pockets(self):
+        from finance_app.core.services.classification import EARNED_INCOME_TYPE, refine_movement_type
+        self.assertEqual(refine_movement_type("Abono CITIBANK", 100, "abono", ["citibank"]), EARNED_INCOME_TYPE)
+        for text, amount, current in [
+            ("Reembolso examen CITIBANK", 100, "abono"),
+            ("Intereses CITIBANK", 100, "intereses"),
+            ("Abono de Bolsillo CITIBANK", 100, "bolsillo"),
+            ("Pago nomina CITIBANK", -100, "transferencia"),
+        ]:
+            self.assertEqual(refine_movement_type(text, amount, current, ["citibank"]), current)
+
     def test_pocket_section_supplies_missing_description_context(self):
         from finance_app.core.services.statement_text import parse_statement_text
         text = """CUENTA DE AHORROS
@@ -101,6 +146,43 @@ class FinanceTests(TestCase):
         self.assertEqual(tx.classification, "gasto")
         self.assertEqual(len(report["changes"]), 1)
         self.assertTrue(any("negative_abono_requires_source" in w["reasons"] for w in report["warnings"]))
+
+    def test_income_category_dry_run_and_future_import_with_confirmed_payer(self):
+        from pathlib import Path
+        from finance_app.core.services.classification import EARNED_INCOME_TYPE
+        abono, _ = MovementType.objects.get_or_create(name="abono")
+        income, _ = MovementType.objects.get_or_create(name=EARNED_INCOME_TYPE)
+        income.keywords = ["empresa confirmada"]
+        income.save()
+        existing = Transaction.objects.create(user=self.user, amount=100, description="Transferencia PAGO NOMINA", movement_type=abono, classification="ingreso")
+        with TemporaryDirectory() as root:
+            call_command("categorize_income", output_dir=root)
+            report = json.loads(next(Path(root).glob("income_categories_*.json")).read_text())
+        self.assertEqual(report["counts"]["Transaction"], 1)
+        existing.refresh_from_db()
+        self.assertEqual(existing.movement_type, abono)
+        rows = [{"date": "2026-01-01", "amount": 100, "description": "Abono Empresa Confirmada", "movement_type": "abono"},
+                {"date": "2026-01-02", "amount": -20, "description": "Cargo por Recaudo con Debito Automatico", "movement_type": "abono"}]
+        with patch("finance_app.core.services.pdf_parser.parse_pdf_file", return_value=(rows, [])):
+            batch = stage_pdf_files(self.user, [Path("test.pdf")])
+        staged = list(batch.staged_transactions.select_related("movement_type").order_by("id"))
+        self.assertEqual(staged[0].movement_type.name, EARNED_INCOME_TYPE)
+        self.assertEqual(staged[0].classification, "ingreso")
+        self.assertEqual(staged[1].movement_type.name, "pago")
+        self.assertEqual(staged[1].amount, Decimal("-20.00"))
+
+    def test_pdf_import_uses_posted_date_for_oim_income(self):
+        from pathlib import Path
+        from finance_app.core.services.classification import OIM_FEES_TYPE, SALARY_TYPE
+        rows = [
+            {"date": "2021-12-31", "amount": 100, "description": "Abono CITIBANK", "movement_type": "abono"},
+            {"date": "2022-01-01", "amount": 100, "description": "Abono CITIBANK", "movement_type": "abono"},
+            {"date": "2026-01-01", "amount": 100, "description": "Abono ENGINEER SYSTEMS CORP SAS", "movement_type": "abono"},
+        ]
+        with patch("finance_app.core.services.pdf_parser.parse_pdf_file", return_value=(rows, [])):
+            batch = stage_pdf_files(self.user, [Path("test.pdf")])
+        names = list(batch.staged_transactions.order_by("id").values_list("movement_type__name", flat=True))
+        self.assertEqual(names, [OIM_FEES_TYPE, "abono", SALARY_TYPE])
 
     @patch("finance_app.core.services.pdf_parser.parse_pdf_file", return_value=([], [{"error": "failure"}]))
     def test_failed_import_rolls_back_batch(self, parser):

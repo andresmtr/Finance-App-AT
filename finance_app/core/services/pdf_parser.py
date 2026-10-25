@@ -164,11 +164,14 @@ def detect_bank_and_last4(text: str) -> Tuple[str, str]:
 # ===========================
 # Movement type
 # ===========================
-def classify_movement_type(description: str) -> str:
-    from finance_app.core.services.classification import special_classification
+def classify_movement_type(description: str, amount=None, transaction_date=None) -> str:
+    from finance_app.core.services.classification import special_classification, movement_override, refine_movement_type
     special = special_classification(description)
     if special:
         return special
+    override = movement_override(description, amount, transaction_date=transaction_date)
+    if override:
+        return override
     d = _norm(description)
     if ("cdt" in d) and ("interes" in d or "rendim" in d):
         return "intereses"
@@ -188,7 +191,7 @@ def classify_movement_type(description: str) -> str:
     ]
     for label, kws in rules:
         if any(k in d for k in kws):
-            return label
+            return refine_movement_type(description, amount, label, transaction_date=transaction_date)
     return "pago"
 
 
@@ -841,7 +844,7 @@ def parse_table_image_to_transactions(
             "time": time,
             "amount": amount,
             "currency": currency,
-            "movement_type": classify_movement_type(desc),
+            "movement_type": classify_movement_type(desc, amount, date_iso),
             "reference": ref,
             "merchant": "",
             "location": loc,
@@ -903,7 +906,7 @@ def fullpage_fallback_transactions(
                 "time": "",
                 "amount": amount,
                 "currency": infer_currency(txt),
-                "movement_type": classify_movement_type(txt),
+                "movement_type": classify_movement_type(txt, amount, date_iso),
                 "reference": "",
                 "merchant": "",
                 "location": "",
@@ -975,7 +978,7 @@ def _enrich_ai_transactions(data: List[Dict[str, Any]], bank: str, last4: str) -
     for tx in data:
         tx["bank"] = bank
         tx["account_last4"] = last4
-        tx["movement_type"] = classify_movement_type(tx.get("description", ""))
+        tx["movement_type"] = classify_movement_type(tx.get("description", ""), tx.get("amount"), tx.get("date"))
         tx["id"] = uuid.uuid4().hex
     return data
 
@@ -1068,7 +1071,7 @@ Return an object with a transactions array using the required JSON schema.
                 if not amount.is_finite() or abs(amount) >= Decimal("1000000000000"):
                     raise ValueError(f"Invalid amount on page {page_number}")
                 row["source_page"] = page_number
-                row["movement_type"] = classify_movement_type(row["description"])
+                row["movement_type"] = classify_movement_type(row["description"], row.get("amount"), row.get("date"))
                 row["id"] = uuid.uuid4().hex
                 data.append(row)
         return data, {"openai_used": True, "pages_sent": len(pages), "model": model_name}
@@ -1109,7 +1112,7 @@ def parse_pdf_file(
             native_rows = parse_statement_text(native_pages, native_year)
             if native_rows:
                 for row in native_rows:
-                    row["movement_type"] = classify_movement_type(row["description"])
+                    row["movement_type"] = classify_movement_type(row["description"], row.get("amount"), row.get("date"))
                     row["source_pdf"] = Path(pdf_path).name
                     row["id"] = uuid.uuid4().hex
                 return native_rows, [{"native_text": True, "balance_verified": True, "pages": len(native_pages)}]

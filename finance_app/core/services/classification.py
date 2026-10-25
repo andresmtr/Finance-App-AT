@@ -2,6 +2,63 @@
 import re
 import unicodedata
 from decimal import Decimal
+from datetime import date
+
+EARNED_INCOME_TYPE = "pago de salarios u honorarios"
+SALARY_TYPE = "pago de salarios"
+OIM_FEES_TYPE = "honorarios OIM"
+
+
+def movement_override(description, amount=None, income_keywords=(), transaction_date=None):
+    """Identify earned income only on incoming movements, never by bank name alone."""
+    text = normalize(description)
+    if special_classification(description):
+        return None
+    try:
+        value = Decimal(str(amount))
+        if not value.is_finite():
+            return None
+    except (ValueError, ArithmeticError):
+        return None
+    if value < 0:
+        # 'Recaudo' on a direct debit is a payment, despite the old generic abono rule.
+        if re.search(r"\b(cargo|debito|descuento|dcto)\b", text) and "recaudo" in text:
+            return "pago"
+        if text.startswith("abono"):
+            return "pago"
+        return None
+    if value == 0 or re.search(r"\b(reembolso|devolucion|reversion|anulacion|intereses?|rendimientos?)\b", text):
+        return None
+    # Payer identities and the OIM cutoff were confirmed by the account owner.
+    if "engineer systems" in text or re.search(r"(?<!\d)0*9009495364(?!\d)", text):
+        return SALARY_TYPE
+    try:
+        posted_date = date.fromisoformat(str(transaction_date))
+    except (ValueError, TypeError):
+        posted_date = None
+    if posted_date and posted_date <= date(2021, 12, 31) and re.search(r"\b(citibank|ciban)\b", text):
+        return OIM_FEES_TYPE
+    explicit = re.search(
+        r"\b(nomina|honorarios?|contratista|salarios?|sueldos?)\b"
+        r"|\bliq(?:uidacion)?\.?\s+contrato\s+de\s+trabajo\b"
+        r"|\bpago\s+(?:de\s+)?prima\b", text,
+    )
+    confirmed_payer = any(normalize(keyword) in text for keyword in income_keywords if normalize(keyword))
+    if explicit or confirmed_payer:
+        return EARNED_INCOME_TYPE
+    return None
+
+
+def refine_movement_type(description, amount, current_type, income_keywords=(), transaction_date=None):
+    override = movement_override(description, amount, income_keywords, transaction_date)
+    if override:
+        return override
+    try:
+        if Decimal(str(amount)) < 0 and current_type in {"abono", EARNED_INCOME_TYPE, SALARY_TYPE, OIM_FEES_TYPE}:
+            return "pago"
+    except (ValueError, ArithmeticError):
+        pass
+    return current_type
 
 
 def normalize(text):

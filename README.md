@@ -103,3 +103,15 @@ python manage.py runserver
 - Los intereses de CDT son ingresos separados del capital. Los traslados entre cuenta y bolsillos, incluidos sus rendimientos ya abonados, no afectan al ingreso ni al gasto operativo.
 - `python manage.py audit_finances` genera un informe privado en `data/audits/`. `--apply` guarda una copia de SQLite antes de corregir agrupaciones inequívocas; no cambia signos ni elimina posibles duplicados.
 - Las importaciones pendientes se pueden abrir desde `/imports/`; sus movimientos no afectan los totales hasta aprobarlos.
+
+
+Los ingresos con conceptos de nómina, honorarios, contratista, prima o liquidación laboral se agrupan como `pago de salarios u honorarios`. La detección exige un importe positivo y conserva la descripción bancaria original. `python manage.py categorize_income` permite revisar los cambios y `--apply` aplicarlos con copia de seguridad. `--income-keyword "nombre del pagador confirmado"` guarda frases confirmadas en las palabras clave del tipo de movimiento para reconocer futuras importaciones; el nombre de un banco, por sí solo, no se considera prueba de un pago laboral.
+
+Reglas confirmadas del pagador: los ingresos de ENGINEER SYSTEMS CORP SAS (incluido su NIT 9009495364) se clasifican como `pago de salarios`. Los abonos de CITIBANK/CIBAN con fecha de movimiento hasta el 31 de diciembre de 2021 inclusive se clasifican como `honorarios OIM`. Los movimientos posteriores o sin fecha no reciben automáticamente esa categoría de OIM. Los débitos, reembolsos, intereses y movimientos de bolsillos conservan sus reglas específicas.
+
+
+### Datos privados y despliegue
+
+Git y el contexto de construcción de Docker excluyen las bases de datos, respaldos, PDF, exportaciones, notebooks, credenciales y las carpetas `data/` y `uploads/`. Los datos se mantienen localmente y se trasladan al servidor por un canal privado, separados del despliegue del código. Para conservar el botón de extracto original al restaurar la base, también se debe copiar `uploads/pdfs/` al almacenamiento privado del servidor.
+
+Eliminar un archivo del índice o añadirlo a `.gitignore` no lo elimina de los commits anteriores. El historial publicado que contenga datos privados requiere una limpieza específica del historial remoto.
