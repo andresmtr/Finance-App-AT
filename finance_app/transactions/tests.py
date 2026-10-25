@@ -16,12 +16,12 @@ from finance_app.transactions.models import ImportBatch, MovementType, StagedTra
 
 class ClassificationTests(SimpleTestCase):
     def test_confirmed_employer_and_oim_cutoff(self):
-        from finance_app.core.services.classification import OIM_FEES_TYPE, SALARY_TYPE, refine_movement_type
+        from finance_app.core.services.classification import EARNED_INCOME_TYPE, refine_movement_type
         cases = [
-            ("Abono Engineer Systems Corp Sas", 100, "2026-01-01", SALARY_TYPE),
-            ("Transferencia BOGOTA 9009495364", 100, "2019-01-01", SALARY_TYPE),
-            ("Abono Bco CITIBANK", 100, "2021-12-31", OIM_FEES_TYPE),
-            ("Abono Cta CIBAN 000000801055528", 100, date(2021, 5, 6), OIM_FEES_TYPE),
+            ("Abono Engineer Systems Corp Sas", 100, "2026-01-01", EARNED_INCOME_TYPE),
+            ("Transferencia BOGOTA 9009495364", 100, "2019-01-01", EARNED_INCOME_TYPE),
+            ("Abono Bco CITIBANK", 100, "2021-12-31", EARNED_INCOME_TYPE),
+            ("Abono Cta CIBAN 000000801055528", 100, date(2021, 5, 6), EARNED_INCOME_TYPE),
             ("Abono Bco CITIBANK", 100, "2022-01-01", "transferencia"),
             ("Transferencia CITIBANK", 100, None, "transferencia"),
             ("Transferencia CITIBANK", -100, "2021-12-31", "transferencia"),
@@ -173,7 +173,7 @@ class FinanceTests(TestCase):
 
     def test_pdf_import_uses_posted_date_for_oim_income(self):
         from pathlib import Path
-        from finance_app.core.services.classification import OIM_FEES_TYPE, SALARY_TYPE
+        from finance_app.core.services.classification import EARNED_INCOME_TYPE
         rows = [
             {"date": "2021-12-31", "amount": 100, "description": "Abono CITIBANK", "movement_type": "abono"},
             {"date": "2022-01-01", "amount": 100, "description": "Abono CITIBANK", "movement_type": "abono"},
@@ -182,7 +182,7 @@ class FinanceTests(TestCase):
         with patch("finance_app.core.services.pdf_parser.parse_pdf_file", return_value=(rows, [])):
             batch = stage_pdf_files(self.user, [Path("test.pdf")])
         names = list(batch.staged_transactions.order_by("id").values_list("movement_type__name", flat=True))
-        self.assertEqual(names, [OIM_FEES_TYPE, "abono", SALARY_TYPE])
+        self.assertEqual(names, [EARNED_INCOME_TYPE, "abono", EARNED_INCOME_TYPE])
 
     @patch("finance_app.core.services.pdf_parser.parse_pdf_file", return_value=([], [{"error": "failure"}]))
     def test_failed_import_rolls_back_batch(self, parser):

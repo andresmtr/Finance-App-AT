@@ -5,8 +5,6 @@ from decimal import Decimal
 from datetime import date
 
 EARNED_INCOME_TYPE = "pago de salarios u honorarios"
-SALARY_TYPE = "pago de salarios"
-OIM_FEES_TYPE = "honorarios OIM"
 
 
 def movement_override(description, amount=None, income_keywords=(), transaction_date=None):
@@ -31,13 +29,13 @@ def movement_override(description, amount=None, income_keywords=(), transaction_
         return None
     # Payer identities and the OIM cutoff were confirmed by the account owner.
     if "engineer systems" in text or re.search(r"(?<!\d)0*9009495364(?!\d)", text):
-        return SALARY_TYPE
+        return EARNED_INCOME_TYPE
     try:
         posted_date = date.fromisoformat(str(transaction_date))
     except (ValueError, TypeError):
         posted_date = None
     if posted_date and posted_date <= date(2021, 12, 31) and re.search(r"\b(citibank|ciban)\b", text):
-        return OIM_FEES_TYPE
+        return EARNED_INCOME_TYPE
     explicit = re.search(
         r"\b(nomina|honorarios?|contratista|salarios?|sueldos?)\b"
         r"|\bliq(?:uidacion)?\.?\s+contrato\s+de\s+trabajo\b"
@@ -54,7 +52,7 @@ def refine_movement_type(description, amount, current_type, income_keywords=(), 
     if override:
         return override
     try:
-        if Decimal(str(amount)) < 0 and current_type in {"abono", EARNED_INCOME_TYPE, SALARY_TYPE, OIM_FEES_TYPE}:
+        if Decimal(str(amount)) < 0 and current_type in {"abono", EARNED_INCOME_TYPE, "pago de salarios", "honorarios OIM"}:
             return "pago"
     except (ValueError, ArithmeticError):
         pass

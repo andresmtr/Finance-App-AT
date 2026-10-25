@@ -44,3 +44,6 @@ ENV/
 dist/
 build/
 .DS_Store
+
+# Private full-backup downloads
+*.zip

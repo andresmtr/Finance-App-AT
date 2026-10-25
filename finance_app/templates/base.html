@@ -160,6 +160,7 @@
             <a class="btn btn-sm btn-outline-light" href="/transactions/"><i class="fa-solid fa-list-ul me-1"></i> {% trans "Transactions" %}</a>
             <a class="btn btn-sm btn-outline-light" href="{% url 'ai_chat:chat' %}"><i class="fa-solid fa-robot me-1"></i> {% trans "Chat AI" %}</a>
             {% if user.is_authenticated %}
+              <a class="btn btn-sm btn-outline-light" href="{% url 'cards' %}"><i class="fa-solid fa-credit-card me-1"></i> Tarjetas y consumos</a>
               <a class="btn btn-sm btn-outline-light" href="/imports/"><i class="fa-solid fa-file-pdf me-1"></i> {% trans "Import PDFs" %}</a>
               <a class="btn btn-sm btn-outline-light" href="/transactions/manual/"><i class="fa-solid fa-plus me-1"></i> {% trans "Manual Entry" %}</a>
               <form method="post" action="/logout/" class="m-0">

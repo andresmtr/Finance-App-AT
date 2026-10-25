@@ -48,20 +48,35 @@ def update_data(request: HttpRequest) -> HttpResponse:
     return redirect(request.META.get("HTTP_REFERER", "/"))
 
 
+def _backup_source_path():
+    from pathlib import Path
+    return Path(settings.DATABASES["default"]["NAME"])
+
+
 @login_required
 @user_passes_test(lambda u: u.is_superuser)
 def download_backup(request: HttpRequest) -> HttpResponse:
-    db_path = settings.DATABASES["default"]["NAME"]
-    if not os.path.exists(db_path):
+    import sqlite3
+    import tempfile
+    from contextlib import closing
+    from pathlib import Path
+    db_path = _backup_source_path()
+    if not db_path.is_file():
         messages.error(request, "Archivo de base de datos no encontrado.")
         return redirect("/")
-    
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"backup_finance_{timestamp}.sqlite3"
-    
-    response = FileResponse(open(db_path, "rb"), content_type="application/x-sqlite3")
-    response["Content-Disposition"] = f'attachment; filename="{filename}"'
-    return response
+    temporary = tempfile.NamedTemporaryFile(suffix=".sqlite3")
+    try:
+        with closing(sqlite3.connect(db_path.resolve().as_uri() + "?mode=ro", uri=True)) as source, closing(sqlite3.connect(temporary.name)) as target:
+            source.backup(target)
+        temporary.seek(0)
+        response = FileResponse(temporary, content_type="application/x-sqlite3", as_attachment=True,
+                                filename=f"backup_finance_{datetime.now():%Y%m%d_%H%M%S}.sqlite3")
+        response["Cache-Control"] = "private, no-store"
+        return response
+    except Exception:
+        temporary.close()
+        raise
+
 
 
 @login_required
@@ -93,3 +108,40 @@ def restore_backup(request: HttpRequest) -> HttpResponse:
         messages.error(request, f"Error al restaurar: {e}")
         
     return redirect("/")
+
+
+@login_required
+@user_passes_test(lambda u: u.is_superuser)
+def download_full_backup(request):
+    """Consistent database snapshot and referenced PDFs, streamed as a private archive."""
+    import json
+    import sqlite3
+    import tempfile
+    import zipfile
+    from contextlib import closing
+    from pathlib import Path
+    from finance_app.transactions.models import CardStatement, StagedTransaction, Transaction
+
+    root=Path(settings.MEDIA_ROOT).resolve()
+    archive=tempfile.SpooledTemporaryFile(max_size=16*1024*1024)
+    missing=[];included=[]
+    try:
+        with tempfile.NamedTemporaryFile(suffix='.sqlite3') as snapshot:
+            source_path=_backup_source_path().resolve()
+            with closing(sqlite3.connect(source_path.as_uri()+'?mode=ro',uri=True)) as source,closing(sqlite3.connect(snapshot.name)) as target:source.backup(target)
+            with zipfile.ZipFile(archive,'w',compression=zipfile.ZIP_DEFLATED) as bundle:
+                bundle.write(snapshot.name,'db.sqlite3')
+                references={('pdfs',name) for name in Transaction.objects.exclude(source_pdf='').values_list('source_pdf',flat=True)}
+                references|={('pdfs',name) for name in StagedTransaction.objects.exclude(source_pdf='').values_list('source_pdf',flat=True)}
+                references|={('cards',name) for name in CardStatement.objects.values_list('source_pdf',flat=True)}
+                for folder,name in sorted(references):
+                    path=(root/folder/name).resolve()
+                    archive_name=f'uploads/{folder}/{name}'
+                    if path.parent!=(root/folder).resolve() or not path.is_file():missing.append(archive_name);continue
+                    bundle.write(path,archive_name);included.append(archive_name)
+                bundle.writestr('manifest.json',json.dumps({'created_at':datetime.now().isoformat(),'database':'db.sqlite3','pdfs':included,'missing_pdfs':missing},ensure_ascii=False,indent=2))
+        archive.seek(0)
+        response=FileResponse(archive,content_type='application/zip',as_attachment=True,filename=f'finance_completo_{datetime.now():%Y%m%d_%H%M%S}.zip')
+        response['Cache-Control']='private, no-store';return response
+    except Exception:
+        archive.close();raise

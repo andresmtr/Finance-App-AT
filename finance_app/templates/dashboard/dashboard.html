@@ -200,6 +200,7 @@
         <div class="d-flex flex-wrap gap-3 align-items-end">
           <div>
             <p class="text-muted small mb-2">{% trans "Download a full copy of your current database." %}</p>
+            <a href="{% url 'download_full_backup' %}" class="btn btn-primary mb-2">Descargar respaldo completo (base + PDF)</a>
             <a href="{% url 'download_backup' %}" class="btn btn-outline-primary">
               <i class="fa-solid fa-download me-2"></i>{% trans "Download SQLite Backup" %}
             </a>

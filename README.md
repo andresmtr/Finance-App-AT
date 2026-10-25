@@ -107,7 +107,7 @@ python manage.py runserver
 
 Los ingresos con conceptos de nómina, honorarios, contratista, prima o liquidación laboral se agrupan como `pago de salarios u honorarios`. La detección exige un importe positivo y conserva la descripción bancaria original. `python manage.py categorize_income` permite revisar los cambios y `--apply` aplicarlos con copia de seguridad. `--income-keyword "nombre del pagador confirmado"` guarda frases confirmadas en las palabras clave del tipo de movimiento para reconocer futuras importaciones; el nombre de un banco, por sí solo, no se considera prueba de un pago laboral.
 
-Reglas confirmadas del pagador: los ingresos de ENGINEER SYSTEMS CORP SAS (incluido su NIT 9009495364) se clasifican como `pago de salarios`. Los abonos de CITIBANK/CIBAN con fecha de movimiento hasta el 31 de diciembre de 2021 inclusive se clasifican como `honorarios OIM`. Los movimientos posteriores o sin fecha no reciben automáticamente esa categoría de OIM. Los débitos, reembolsos, intereses y movimientos de bolsillos conservan sus reglas específicas.
+Reglas confirmadas del pagador: los ingresos de ENGINEER SYSTEMS CORP SAS (incluido su NIT 9009495364) se clasifican como `pago de salarios u honorarios`. Los abonos de CITIBANK/CIBAN con fecha de movimiento hasta el 31 de diciembre de 2021 inclusive se clasifican como `pago de salarios u honorarios`. Los movimientos posteriores o sin fecha no reciben automáticamente esa categoría de OIM. Los débitos, reembolsos, intereses y movimientos de bolsillos conservan sus reglas específicas.
 
 
 ### Datos privados y despliegue
@@ -115,3 +115,17 @@ Reglas confirmadas del pagador: los ingresos de ENGINEER SYSTEMS CORP SAS (inclu
 Git y el contexto de construcción de Docker excluyen las bases de datos, respaldos, PDF, exportaciones, notebooks, credenciales y las carpetas `data/` y `uploads/`. Los datos se mantienen localmente y se trasladan al servidor por un canal privado, separados del despliegue del código. Para conservar el botón de extracto original al restaurar la base, también se debe copiar `uploads/pdfs/` al almacenamiento privado del servidor.
 
 Eliminar un archivo del índice o añadirlo a `.gitignore` no lo elimina de los commits anteriores. El historial publicado que contenga datos privados requiere una limpieza específica del historial remoto.
+
+
+### Tarjetas, consumos y conciliación
+
+La sección `/cards/` mantiene los consumos de tarjeta separados de los movimientos de cuentas. Una compra a cuotas se registra una sola vez por su valor original; cada extracto conserva el importe a pagar, saldo pendiente y cuotas. Los pagos reducen la deuda y se cruzan con las salidas bancarias sin generar un gasto adicional en el flujo de caja.
+
+- Carga nuevos PDF desde **Tarjetas y consumos**. La lectura nativa admite extractos de Davivienda y Banco de Bogotá; los escaneos utilizan el modelo PDF configurado. Los archivos y sus contraseñas no se incluyen en el repositorio; las contraseñas del formulario no se guardan.
+- Los cruces automáticos requieren importe exacto, moneda coincidente, diferencia de hasta siete días y un candidato único en ambos lados; se respeta la tarjeta destino cuando aparece en la descripción. Las dudas y saldos sin cruce quedan visibles.
+- En **Conciliar** puedes marcar varias compras o costos para asociarlos a un pago, incluso de otro mes. Se admiten importes parciales y se impide exceder el pago o el gasto. Este desglose manual se conserva junto al cruce entre el pago de cuenta y el abono del extracto.
+- El Excel de tarjetas incluye consumos, abonos, pagos de cuenta, conciliaciones, gastos asociados, extractos, detalle y alcance de filtros. Las compras se filtran por fecha de compra y los extractos por fecha de corte. El Excel de cuentas conserva los filtros y exporta un archivo válido incluso sin resultados.
+- El respaldo SQLite usa una instantánea consistente. **Descargar respaldo completo (base + PDF)** genera un ZIP privado con `db.sqlite3`, los PDF referenciados y `manifest.json`. Para el servidor, conserva las rutas `uploads/pdfs/` y `uploads/cards/`. El formulario de restauración existente recibe el archivo `.sqlite3`, no el ZIP.
+- Después de desplegar código nuevo o restaurar una base anterior, ejecuta `python manage.py migrate --noinput`. Las migraciones de tarjetas crean las tablas nuevas sin reemplazar los movimientos de cuentas.
+
+Para importaciones masivas locales: `python manage.py import_card_statements --manifest ruta_privada.json --user-id ID`. La contraseña se lee de `CARD_PDF_PASSWORD`; no se almacena en el manifiesto ni en los informes. `--refresh` vuelve a leer los períodos existentes, conserva las clasificaciones y cruces de movimientos que no cambian, y retira los cruces de filas corregidas.

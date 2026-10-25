@@ -6,6 +6,7 @@ from django.urls import path
 from finance_app.core import views as core_views
 from finance_app.dashboard import views as dashboard_views
 from finance_app.transactions import views as transaction_views
+from finance_app.transactions import card_views
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -16,6 +17,13 @@ urlpatterns = [
     path("", dashboard_views.dashboard, name="dashboard"),
     path("ai-chat/", include("finance_app.ai_chat.urls", namespace="ai_chat")),
     path("transactions/", transaction_views.transactions, name="transactions"),
+    path("cards/", card_views.cards, name="cards"),
+    path("cards/import/", card_views.import_cards, name="import_cards"),
+    path("cards/reconcile/", card_views.reconcile_cards, name="reconcile_cards"),
+    path("cards/movements/<int:pk>/classify/", card_views.classify_card_movement, name="classify_card_movement"),
+    path("cards/statements/<int:pk>/", card_views.card_statement, name="card_statement"),
+    path("cards/statements/<int:pk>/review/", card_views.review_card_statement, name="review_card_statement"),
+    path("cards/statements/<int:pk>/pdf/", card_views.card_source, name="card_source"),
     path("imports/", transaction_views.import_pdfs, name="import_pdfs"),
     path("imports/<int:batch_id>/review/", transaction_views.review_next, name="review_next"),
     path("transactions/manual/", transaction_views.manual_transaction, name="manual_transaction"),
@@ -24,6 +32,7 @@ urlpatterns = [
     path("transactions/<int:pk>/delete/", transaction_views.delete_transaction, name="delete_transaction"),
     path("telegram/webhook/", transaction_views.telegram_webhook, name="telegram_webhook"),
     path("update/", core_views.update_data, name="update_data"),
+    path("backup/full/download/", core_views.download_full_backup, name="download_full_backup"),
     path("backup/download/", core_views.download_backup, name="download_backup"),
     path("backup/restore/", core_views.restore_backup, name="restore_backup"),
     path("health/", core_views.health, name="health"),

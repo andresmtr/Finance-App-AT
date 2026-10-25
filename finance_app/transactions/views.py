@@ -140,48 +140,16 @@ def transactions(request: HttpRequest) -> HttpResponse:
     filtered = _apply_filters(base_qs, request.GET)
 
     if request.GET.get("export") == "1":
-        export_rows = (
-            filtered.annotate(movement_type_name=F("movement_type__name"))
-            .values(
-                "bank",
-                "account_last4",
-                "date",
-                "time",
-                "amount",
-                "currency",
-                "movement_type_name",
-                "classification",
-                "reference",
-                "merchant",
-                "location",
-                "channel",
-                "description",
-                "external_id",
-            )
-            .order_by("-date", "-time")
-        )
-        export_frame = [
-            {
-                **row,
-                "movement_type": row.pop("movement_type_name"),
-                "classification": row.pop("classification", ""),
-                "id": row.pop("external_id"),
-            }
-            for row in export_rows
-        ]
-        if export_frame:
-            import io
-            df = pd.DataFrame(export_frame)[COLUMNS]
-            output = io.BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                df.to_excel(writer, index=False)
-            output.seek(0)
-            file_data = output.read()
-        else:
-            file_data = b""
-        response = HttpResponse(file_data, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-        response["Content-Disposition"] = "attachment; filename=transacciones.xlsx"
-        return response
+        from finance_app.transactions.services.exports import workbook_response
+        headers = COLUMNS + ["transaction_id", "source_pdf", "source_page"]
+        rows = []
+        for tx in filtered.order_by("-date", "-time", "-pk"):
+            values = {key: getattr(tx, key, None) for key in COLUMNS}
+            values["movement_type"] = tx.movement_type.name if tx.movement_type else ""
+            values["id"] = tx.external_id
+            values.update(transaction_id=tx.pk, source_pdf=tx.source_pdf, source_page=tx.source_page)
+            rows.append([values.get(key) for key in headers])
+        return workbook_response([("Movimientos", headers, rows)], "transacciones.xlsx")
 
     if request.GET.get("show_all") == "1":
         page_obj = type("PageObj", (), {"object_list": filtered.order_by("-date", "-time"), "has_previous": False, "has_next": False, "number": 1})()

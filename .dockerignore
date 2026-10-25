@@ -31,3 +31,6 @@ __pycache__
 .venv
 venv
 .DS_Store
+
+# Private full-backup downloads
+*.zip
